@@ -4,9 +4,8 @@ name: presentation-extra-native-viewer-malformed
 - assertVisible:
     text: Couldn't open file
 - assertVisible:
+    id: media.viewer.retry
     enabled: true
-    containsChild:
-      text: Tap to retry
 - back
 - assertVisible:
     id: presentation.complete
