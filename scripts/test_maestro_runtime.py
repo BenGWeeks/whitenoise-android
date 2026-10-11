@@ -1462,6 +1462,20 @@ class RuntimeEvidenceTest(unittest.TestCase):
             self.assertEqual(commands[index + 1], {'assertNotVisible': {'id': tag, 'text': '.+'}})
         self.assertEqual(selected, ['person_profile.nickname', 'person_profile.notes'])
 
+    def test_startup_diagnostics_share_does_not_dispatch_retry(self):
+        for variant in ('retryable', 'terminal'):
+            name = f'presentation-startup-diagnostics-{variant}'
+            self.assertEqual(runtime.CASES[name]['presentation_actions'], ['diagnostics-share'])
+            commands = list(yaml.safe_load_all((runtime.ROOT / '.maestro/runtime' / f'{name}.yaml').read_text()))[1]
+            self.assertIn({'tapOn': {'id': 'startup-share-diagnostics'}}, commands)
+            self.assertNotIn({'tapOn': {'id': 'startup-retry'}}, commands)
+            assertion = ({'assertVisible': {'id': 'startup-retry', 'enabled': True}}
+                         if variant == 'retryable' else {'assertNotVisible': {'id': 'startup-retry'}})
+            self.assertIn(assertion, commands)
+            ordinary = list(yaml.safe_load_all(
+                (runtime.ROOT / '.maestro/runtime' / f'presentation-startup-{variant}.yaml').read_text()))[1]
+            self.assertIn({'assertNotVisible': {'id': 'startup-share-diagnostics'}}, ordinary)
+
     def test_setup_relay_edits_remove_complete_values_before_review(self):
         """Captured center taps left a URL suffix in both empty and replacement inputs."""
         for name, expected in (('empty', ['setup.editor.writes', 'setup.editor.reads']),

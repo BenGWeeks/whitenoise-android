@@ -5,6 +5,8 @@ name: presentation-startup-terminal
     id: startup-failure
 - assertVisible: Disposable startup failure
 - assertNotVisible:
+    id: startup-share-diagnostics
+- assertNotVisible:
     id: startup-retry
 - assertVisible:
     id: startup-copy-report

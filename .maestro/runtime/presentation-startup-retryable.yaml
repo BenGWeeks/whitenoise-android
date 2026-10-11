@@ -4,6 +4,8 @@ name: presentation-startup-retryable
 - assertVisible:
     id: startup-failure
 - assertVisible: Disposable startup failure
+- assertNotVisible:
+    id: startup-share-diagnostics
 - assertVisible:
     id: startup-retry
     enabled: true

@@ -66,6 +66,9 @@ def screen_bindings(root, screens, cases):
     document = json.loads((root / 'config/maestro-screen-assertions.json').read_text())
     if document.get('schema') != 1 or not isinstance(document.get('screens'), list):
         raise ValueError('Invalid direct screen assertion inventory')
+    default_remaining = document.get('default_remaining', '')
+    if not isinstance(default_remaining, str):
+        raise ValueError('Invalid default remaining screen scope')
     expected = {(screen['source'], screen['symbol']) for screen in screens}
     found, result, flows = set(), [], {}
     for row in document['screens']:
@@ -94,7 +97,8 @@ def screen_bindings(root, screens, cases):
             if selector not in assertions:
                 raise ValueError(f'Screen selector is not directly asserted: {key} {case} {selector}')
             qualified.append({**binding, 'flow_sha256': hashes})
-        result.append({**row, 'bindings': qualified, 'execution_verified': False})
+        result.append({**row, 'remaining': row.get('remaining', default_remaining),
+                       'bindings': qualified, 'execution_verified': False})
     if found != expected:
         raise ValueError(f'New screen requires direct assertion audit: {sorted(expected - found)}')
     return result

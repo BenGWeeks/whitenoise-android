@@ -76,6 +76,31 @@ class ScreenProofTest(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     screen_bindings(root, [screen], cases)
 
+    def test_default_remaining_keeps_limits_and_cannot_excuse_an_unmapped_screen(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / 'config').mkdir()
+            (root / '.maestro').mkdir()
+            (root / '.maestro/main.yaml').write_text('appId: test\n---\n- assertVisible: Real screen\n')
+            mapping = root / 'config/maestro-screen-assertions.json'
+            screen = {'source': 'screen.kt', 'symbol': 'Screen'}
+            row = {**screen, 'bindings': [{'case': 'case', 'selector': {'text': 'Real screen'}, 'scope': 'Chrome'}]}
+            cases = {'case': {'flow': '.maestro/main.yaml'}}
+            def save(value):
+                mapping.write_text(json.dumps({'schema': 1, 'default_remaining': 'Unproven', 'screens': [value]}))
+            save(row)
+            proof = screen_bindings(root, [screen], cases)[0]
+            self.assertEqual(proof['remaining'], 'Unproven')
+            self.assertFalse(proof['execution_verified'])
+            save({**row, 'remaining': 'Specific platform limits'})
+            self.assertEqual(screen_bindings(root, [screen], cases)[0]['remaining'], 'Specific platform limits')
+            save({**screen, 'bindings': []})
+            with self.assertRaisesRegex(ValueError, 'Unmapped screen'):
+                screen_bindings(root, [screen], cases)
+            mapping.write_text(json.dumps({'schema': 1, 'default_remaining': True, 'screens': [row]}))
+            with self.assertRaisesRegex(ValueError, 'Invalid default remaining'):
+                screen_bindings(root, [screen], cases)
+
     def test_failed_missing_and_foreign_execution_get_no_screen_credit(self):
         hashes = {'.maestro/real.yaml': 'b' * 64}
         screens = [{'source': 'screen.kt', 'symbol': 'Screen', 'bindings': [{'case': 'real', 'flow_sha256': hashes}]}]

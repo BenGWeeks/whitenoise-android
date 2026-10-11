@@ -30,15 +30,21 @@ internal fun MaestroStartupPresentation(fixture: MaestroPresentationFixture) {
             )
         "startup-loading" -> StartupLoadingScreen()
         "startup-destination-loading" -> LoadingScreen("Waiting for disposable fixture")
-        "startup-retryable", "startup-terminal" ->
+        "startup-retryable", "startup-terminal", "startup-diagnostics-retryable", "startup-diagnostics-terminal" ->
             StartupFailureScreen(
                 title = "Disposable startup failure",
                 error =
                     ErrorPresentation(
                         AppText.Resource(R.string.error_try_again),
                         "Disposable diagnostic report",
-                        retryable = fixture.scenario == "startup-retryable",
+                        retryable = fixture.scenario.endsWith("retryable"),
                     ),
+                onShareDiagnostics =
+                    if (fixture.scenario.startsWith("startup-diagnostics-")) {
+                        { fixture.finish("diagnostics-share") }
+                    } else {
+                        null
+                    },
                 onRetry = { fixture.finish("retry") },
             )
         else -> error("Unknown startup presentation")
