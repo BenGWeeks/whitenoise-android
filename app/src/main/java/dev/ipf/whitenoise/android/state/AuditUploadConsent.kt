@@ -119,7 +119,10 @@ internal class AuditUploadConsent(
                 "Could not save audit disclosure renewal"
             }
             requiresChoice = true
-            val settings = StartupDiagnostics.measure(StartupDiagnosticStage.AUDIT_SETTINGS_READ) { runtime.auditLogSettings() }
+            val settings =
+                StartupDiagnostics.measure(StartupDiagnosticStage.AUDIT_SETTINGS_READ) {
+                    runtime.auditLogSettings()
+                }
             StartupDiagnostics.stage(StartupDiagnosticStage.AUDIT_SETTINGS_WRITE) {
                 runtime.setAuditLogSettings(settings.copy(enabled = false))
             }

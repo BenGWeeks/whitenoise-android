@@ -61,7 +61,10 @@ internal fun formatStartupThreads(
                     .thenBy { it.key.id },
             ).take(MAX_STARTUP_THREADS)
             .forEach { (thread, frames) ->
-                appendLine("thread_id=${thread.id} state=${thread.state.name} observed_stage_thread=${thread.id in preferredIds}")
+                appendLine(
+                    "thread_id=${thread.id} state=${thread.state.name} " +
+                        "observed_stage_thread=${thread.id in preferredIds}",
+                )
                 frames.take(MAX_STARTUP_FRAMES).forEach { frame ->
                     val owner = startupFrameName(frame.className)
                     val method = startupFrameName(frame.methodName)

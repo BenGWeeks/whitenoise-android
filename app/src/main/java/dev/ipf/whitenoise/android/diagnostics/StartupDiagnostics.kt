@@ -38,7 +38,10 @@ internal object StartupDiagnostics {
             "process_started_utc=${Instant.now()}\n"
         val store = StartupDiagnosticFileStore(File(context.filesDir, "startup_diagnostics"))
         fileStore = store
-        recorder = StartupDiagnosticRecorder(SystemClock::elapsedRealtime) { store.offer(header + it + threads.snapshot()) }
+        recorder =
+            StartupDiagnosticRecorder(SystemClock::elapsedRealtime) {
+                store.offer(header + it + threads.snapshot())
+            }
     }
 
     /** Records a genuinely new bootstrap; Retry merely observes the existing attempt. */
