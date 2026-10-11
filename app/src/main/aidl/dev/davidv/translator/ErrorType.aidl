@@ -7,4 +7,3 @@ enum ErrorType {
     DETECTED_BUT_UNAVAILABLE,
     UNEXPECTED,
 }
-
