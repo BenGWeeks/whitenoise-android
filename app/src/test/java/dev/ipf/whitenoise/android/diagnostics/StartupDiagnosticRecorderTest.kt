@@ -42,10 +42,10 @@ class StartupDiagnosticRecorderTest {
             runCurrent()
             assertTrue(recorder.timeoutDetail().contains("stage=AUDIT_OTLP_CONFIG"))
             assertTrue(recorder.snapshot().contains("thread_id="))
-            assertTrue(recorder.activeThreadIds().isNotEmpty())
+            assertTrue(recorder.activeThreadIds.isNotEmpty())
             held.complete(Unit)
             work.join()
-            assertTrue(recorder.activeThreadIds().isEmpty())
+            assertTrue(recorder.activeThreadIds.isEmpty())
         }
 
     /** The actual Copy formatter preserves long stage attribution and every numeric/native field. */

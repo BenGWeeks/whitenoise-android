@@ -145,7 +145,7 @@ internal class StartupDiagnosticRecorder(
         }
 
     /** Thread IDs let the independent sampler prioritize observed calls without retaining thread names. */
-    fun activeThreadIds(): Set<Long> = synchronized(lock) { active.values.map { it.threadId }.toSet() }
+    val activeThreadIds: Set<Long> get() = synchronized(lock) { active.values.map { it.threadId }.toSet() }
 
     /** Reports the most recently entered active boundary, explicitly naming between-stage gaps. */
     private fun detail(): String {

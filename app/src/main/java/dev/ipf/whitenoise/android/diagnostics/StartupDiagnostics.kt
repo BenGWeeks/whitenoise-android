@@ -68,7 +68,7 @@ internal object StartupDiagnostics {
 
     /** Starts a native-independent stack query without waiting for its result or holding the recorder lock. */
     private fun captureThreads(owner: StartupDiagnosticRecorder) {
-        threads.request(owner.activeThreadIds()) { snapshot()?.let { fileStore?.offer(it) } }
+        threads.request(owner.activeThreadIds) { snapshot()?.let { fileStore?.offer(it) } }
     }
 
     /** Observes synchronous binding boundaries without altering their thread or cancellation policy. */
