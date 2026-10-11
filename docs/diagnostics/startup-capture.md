@@ -47,3 +47,28 @@ the text file to the investigating developer. A recorded `NATIVE_CONSTRUCT` or
 `MARMOT_START` stall identifies a host boundary, not a native root cause. Follow
 that evidence with targeted native instrumentation or a thread/system trace;
 this diagnostic build does not repair the underlying failure.
+
+## Privacy-call follow-up capture
+
+The diagnostic stage schema now distinguishes IO dispatch, telemetry installation
+ID/configuration, audit mutex acquisition versus consent preparation, individual
+audit OTLP/tracker/settings calls, local disclosure persistence, product analytics,
+account listing and each attachment policy read/write. It records no call
+arguments or return values, including account identifiers and diagnostic IDs.
+Handled optional errors retain their existing fallback behavior.
+
+At a timeout or thrown bootstrap failure, one independent daemon samples JVM
+thread stacks. Active-stage thread IDs get priority, followed by the main thread.
+The bounded receipt includes capture UTC/duration, thread IDs/states, sanitized
+code class/method names, native-frame flags and line numbers. Thread names,
+source filenames, private paths, locals and exception text are excluded. At most
+16 threads and 16 frames each are retained within an 8 KiB ASCII receipt. The
+report says when sampling is pending or unavailable; retries cannot start extra
+blocked samplers. The full report remains limited to 32 KiB. Capture does not
+wait for a native call, acquire the audit mutex, or query MDK storage.
+
+Existing stages continue to cover the rest of bootstrap. A JVM stack cannot
+reveal a suspended Rust future or a native lock's owner; if the exact binding
+boundary is identified but its implementation remains opaque, use that evidence
+for targeted MDK investigation rather than attributing a native root cause to
+this host capture alone. No APK can guarantee capture of every possible stall.

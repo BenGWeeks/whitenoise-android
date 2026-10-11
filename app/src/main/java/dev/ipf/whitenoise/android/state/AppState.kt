@@ -4935,9 +4935,11 @@ class WhiteNoiseAppState private constructor(
                     configure = { runtime ->
                         appStateDebug { "bootstrap root=${runtime.rootPath}" }
                         startupPerformance.stage(PerformancePhase.PRIVACY_RUNTIME_CONFIGURATION) {
-                            withContext(Dispatchers.IO) {
-                                runtime.marmot.configurePrivacyRuntime()
-                                runtime.marmot.enforceAppOwnedAttachmentAcquisitionForKnownAccounts()
+                            StartupDiagnostics.stage(StartupDiagnosticStage.PRIVACY_DISPATCH) {
+                                withContext(Dispatchers.IO) {
+                                    runtime.marmot.configurePrivacyRuntime()
+                                    runtime.marmot.enforceAppOwnedAttachmentAcquisitionForKnownAccounts()
+                                }
                             }
                         }
                     },
@@ -7211,12 +7213,16 @@ class WhiteNoiseAppState private constructor(
     /** Refreshes device-scoped native receipts and the independent diagnostic log choice. */
     suspend fun refreshSecurityPrivacySettings() {
         diagnostics.refresh(marmot())
-        auditLogSettingsMutex.withLock {
-            // A failed re-read keeps what is on screen rather than presenting a settled choice as off.
-            runCatchingCancellable { marmotIo { auditLogSettings() } }.getOrNull()?.let {
-                auditLogSettings = it
-                DictationDiagnostics.setEnabled(it.enabled && auditUploadConsent.granted)
-                DmCreationDiagnostics.setEnabled(it.enabled && auditUploadConsent.granted)
+        StartupDiagnostics.stage(StartupDiagnosticStage.AUDIT_REFRESH_WAIT) {
+            auditLogSettingsMutex.withLock {
+                StartupDiagnostics.stage(StartupDiagnosticStage.AUDIT_REFRESH_HELD) {
+                    // A failed re-read keeps what is on screen rather than presenting a settled choice as off.
+                    runCatchingCancellable { marmotIo { auditLogSettings() } }.getOrNull()?.let {
+                        auditLogSettings = it
+                        DictationDiagnostics.setEnabled(it.enabled && auditUploadConsent.granted)
+                        DmCreationDiagnostics.setEnabled(it.enabled && auditUploadConsent.granted)
+                    }
+                }
             }
         }
     }

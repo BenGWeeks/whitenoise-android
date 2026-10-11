@@ -7,6 +7,24 @@ internal enum class StartupDiagnosticStage {
     NATIVE_INITIALIZE,
     NATIVE_CONSTRUCT,
     PRIVACY_RUNTIME_CONFIGURATION,
+    PRIVACY_DISPATCH,
+    TELEMETRY_INSTALL_ID,
+    TELEMETRY_RUNTIME_CONFIG,
+    AUDIT_SETTINGS_MUTEX,
+    AUDIT_CONSENT_PREPARE,
+    AUDIT_REFRESH_WAIT,
+    AUDIT_REFRESH_HELD,
+    AUDIT_MUTATION_WAIT,
+    AUDIT_MUTATION_HELD,
+    AUDIT_OTLP_CONFIG,
+    AUDIT_TRACKER_CONFIG,
+    AUDIT_SETTINGS_READ,
+    AUDIT_SETTINGS_WRITE,
+    AUDIT_DISCLOSURE_SAVE,
+    PRODUCT_ANALYTICS_CONFIG,
+    ATTACHMENT_ACCOUNT_LIST,
+    ATTACHMENT_POLICY_READ,
+    ATTACHMENT_POLICY_WRITE,
     MARMOT_START,
     NOTIFICATION_PLATFORM_SETUP,
     NOTIFICATION_PRIVACY_SETUP,
@@ -48,7 +66,7 @@ internal class StartupDiagnosticRecorder(
     fun enter(stage: StartupDiagnosticStage): Long =
         synchronized(lock) {
             val token = ++nextToken
-            if (active.size < MAX_ACTIVE_STAGES) active[token] = Entry(stage, nowMs())
+            if (active.size < MAX_ACTIVE_STAGES) active[token] = Entry(stage, nowMs(), Thread.currentThread().id)
             addEvent("enter stage=${stage.name} token=$token")
             token
         }
@@ -115,11 +133,17 @@ internal class StartupDiagnosticRecorder(
                 appendLine(detail())
                 failedStage?.let { appendLine("failed_stage=${it.name}") }
                 active.forEach { (token, entry) ->
-                    appendLine("active stage=${entry.stage.name} token=$token duration_ms=${elapsed(entry.startedAt)}")
+                    appendLine(
+                        "active stage=${entry.stage.name} token=$token " +
+                            "duration_ms=${elapsed(entry.startedAt)} thread_id=${entry.threadId}",
+                    )
                 }
                 events.forEach(::appendLine)
             }
         }
+
+    /** Thread IDs let the independent sampler prioritize observed calls without retaining thread names. */
+    fun activeThreadIds(): Set<Long> = synchronized(lock) { active.values.map { it.threadId }.toSet() }
 
     /** Reports the most recently entered active boundary, explicitly naming between-stage gaps. */
     private fun detail(): String {
@@ -142,6 +166,7 @@ internal class StartupDiagnosticRecorder(
     private data class Entry(
         val stage: StartupDiagnosticStage,
         val startedAt: Long,
+        val threadId: Long,
     )
 
     companion object {

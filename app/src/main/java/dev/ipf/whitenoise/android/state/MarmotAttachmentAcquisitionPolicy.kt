@@ -4,6 +4,8 @@ import dev.ipf.marmotkit.AccountSummaryFfi
 import dev.ipf.marmotkit.AttachmentDownloadPolicyFfi
 import dev.ipf.marmotkit.MarmotInterface
 import dev.ipf.whitenoise.android.core.MarmotClient
+import dev.ipf.whitenoise.android.diagnostics.StartupDiagnosticStage
+import dev.ipf.whitenoise.android.diagnostics.StartupDiagnostics
 
 /**
  * Enables the native worker in a HOST_MANAGED runtime, which starts denied and never discovers attachments
@@ -16,8 +18,12 @@ internal suspend fun enforceAppOwnedAttachmentAcquisitionPolicy(
     writePolicy: suspend (String, AttachmentDownloadPolicyFfi) -> Unit,
 ) {
     accountRefs.distinct().forEach { accountRef ->
-        val current = readPolicy(accountRef)
-        if (!current.automatic) writePolicy(accountRef, current.copy(automatic = true))
+        val current = StartupDiagnostics.stage(StartupDiagnosticStage.ATTACHMENT_POLICY_READ) { readPolicy(accountRef) }
+        if (!current.automatic) {
+            StartupDiagnostics.stage(StartupDiagnosticStage.ATTACHMENT_POLICY_WRITE) {
+                writePolicy(accountRef, current.copy(automatic = true))
+            }
+        }
     }
 }
 
@@ -32,7 +38,8 @@ internal suspend fun MarmotInterface.enforceAppOwnedAttachmentAcquisitionPolicy(
 
 /** Migrates existing accounts before runtime start, while host permission is still denied. */
 internal suspend fun MarmotInterface.enforceAppOwnedAttachmentAcquisitionForKnownAccounts() {
-    enforceAppOwnedAttachmentAcquisitionPolicy(listAccounts().map(AccountSummaryFfi::label))
+    val accounts = StartupDiagnostics.stage(StartupDiagnosticStage.ATTACHMENT_ACCOUNT_LIST) { listAccounts() }
+    enforceAppOwnedAttachmentAcquisitionPolicy(accounts.map(AccountSummaryFfi::label))
 }
 
 /** Returns accounts after enabling host-managed demand for newly discovered identities. */

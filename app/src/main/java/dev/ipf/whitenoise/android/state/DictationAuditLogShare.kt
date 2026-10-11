@@ -5,6 +5,8 @@ import dev.ipf.marmotkit.MarmotInterface
 import dev.ipf.whitenoise.android.audio.DictationDiagnostics
 import dev.ipf.whitenoise.android.diagnostics.DmCreationDiagnostics
 import dev.ipf.whitenoise.android.diagnostics.PerformanceDiagnostics
+import dev.ipf.whitenoise.android.diagnostics.StartupDiagnosticStage
+import dev.ipf.whitenoise.android.diagnostics.StartupDiagnostics
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.json.JSONObject
@@ -59,10 +61,16 @@ internal suspend fun configureAndroidPrivacyRuntime(
     configureTelemetry: suspend () -> Unit,
 ) {
     configureTelemetry()
-    mutex.withLock {
-        consent.prepare(runtime)
+    StartupDiagnostics.stage(StartupDiagnosticStage.AUDIT_SETTINGS_MUTEX) {
+        mutex.withLock {
+            StartupDiagnostics.stage(StartupDiagnosticStage.AUDIT_CONSENT_PREPARE) {
+                consent.prepare(runtime)
+            }
+        }
     }
-    runtime.setProductAnalyticsRuntimeConfig(androidProductAnalyticsRuntimeConfig())
+    StartupDiagnostics.stage(StartupDiagnosticStage.PRODUCT_ANALYTICS_CONFIG) {
+        runtime.setProductAnalyticsRuntimeConfig(androidProductAnalyticsRuntimeConfig())
+    }
 }
 
 /** Reads only closed export manifests; JSONL records never masquerade as metadata or extend retention. */

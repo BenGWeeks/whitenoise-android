@@ -7,6 +7,8 @@ import dev.ipf.marmotkit.AuditLogUploadSourceV4Ffi
 import dev.ipf.marmotkit.AuditOtlpConfigV5Ffi
 import dev.ipf.marmotkit.MarmotInterface
 import dev.ipf.whitenoise.android.BuildConfig
+import dev.ipf.whitenoise.android.diagnostics.StartupDiagnosticStage
+import dev.ipf.whitenoise.android.diagnostics.StartupDiagnostics
 import java.net.URI
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -51,26 +53,30 @@ private val processAuditRuntimeReadinessMarker =
 
 /** Configures v5 delivery and keeps source metadata without a legacy v4 upload destination. */
 internal suspend fun MarmotInterface.configureAuditRuntime(uploadConsentGranted: Boolean = false) {
-    setAuditOtlpConfigV5(
-        auditOtlpConfigV5(
-            uploadConsentGranted = uploadConsentGranted,
-            endpoint = BuildConfig.WHITENOISE_AUDIT_OTLP_ENDPOINT,
-            authorizationBearerToken = BuildConfig.WHITENOISE_AUDIT_OTLP_AUTH_TOKEN,
-            deploymentEnvironment = BuildConfig.WHITENOISE_DEPLOYMENT_ENVIRONMENT,
-        ),
-    )
-    setAuditLogTrackerConfig(
-        AuditLogTrackerConfigV4Ffi(
-            endpoint = null,
-            authorizationBearerToken = null,
-            source =
-                AuditLogUploadSourceV4Ffi(
-                    hardwareModel = Build.MODEL.trim().takeIf(String::isNotEmpty),
-                    platform = "android",
-                    appVersion = BuildConfig.VERSION_NAME,
-                ),
-        ),
-    )
+    StartupDiagnostics.stage(StartupDiagnosticStage.AUDIT_OTLP_CONFIG) {
+        setAuditOtlpConfigV5(
+            auditOtlpConfigV5(
+                uploadConsentGranted = uploadConsentGranted,
+                endpoint = BuildConfig.WHITENOISE_AUDIT_OTLP_ENDPOINT,
+                authorizationBearerToken = BuildConfig.WHITENOISE_AUDIT_OTLP_AUTH_TOKEN,
+                deploymentEnvironment = BuildConfig.WHITENOISE_DEPLOYMENT_ENVIRONMENT,
+            ),
+        )
+    }
+    StartupDiagnostics.stage(StartupDiagnosticStage.AUDIT_TRACKER_CONFIG) {
+        setAuditLogTrackerConfig(
+            AuditLogTrackerConfigV4Ffi(
+                endpoint = null,
+                authorizationBearerToken = null,
+                source =
+                    AuditLogUploadSourceV4Ffi(
+                        hardwareModel = Build.MODEL.trim().takeIf(String::isNotEmpty),
+                        platform = "android",
+                        appVersion = BuildConfig.VERSION_NAME,
+                    ),
+            ),
+        )
+    }
     // Build configuration never substitutes for an explicit disclosure acknowledgement.
 }
 

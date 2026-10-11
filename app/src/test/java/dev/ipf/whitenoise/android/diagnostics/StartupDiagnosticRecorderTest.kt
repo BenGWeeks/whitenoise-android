@@ -4,6 +4,8 @@ import dev.ipf.whitenoise.android.BuildConfig
 import dev.ipf.whitenoise.android.state.privacySafeErrorPresentation
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -15,6 +17,37 @@ import org.junit.Test
 /** Stalled native work remains observable independently of timeout, retries and persistence failures. */
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class StartupDiagnosticRecorderTest {
+    /** Distinguishes waiting for the audit lock from a held native call after acquiring it. */
+    @Test fun auditMutexWaitAndAcquiredNativeCallHaveDifferentAttribution() =
+        runTest {
+            val recorder = StartupDiagnosticRecorder({ testScheduler.currentTime })
+            val mutex = Mutex(locked = true)
+            val held = CompletableDeferred<Unit>()
+            recorder.beginAttempt()
+            val work =
+                launch {
+                    recorder.stage(StartupDiagnosticStage.PRIVACY_RUNTIME_CONFIGURATION) {
+                        recorder.stage(StartupDiagnosticStage.AUDIT_SETTINGS_MUTEX) {
+                            mutex.withLock {
+                                recorder.stage(StartupDiagnosticStage.AUDIT_CONSENT_PREPARE) {
+                                    recorder.stage(StartupDiagnosticStage.AUDIT_OTLP_CONFIG) { held.await() }
+                                }
+                            }
+                        }
+                    }
+                }
+            runCurrent()
+            assertTrue(recorder.timeoutDetail().contains("stage=AUDIT_SETTINGS_MUTEX"))
+            mutex.unlock()
+            runCurrent()
+            assertTrue(recorder.timeoutDetail().contains("stage=AUDIT_OTLP_CONFIG"))
+            assertTrue(recorder.snapshot().contains("thread_id="))
+            assertTrue(recorder.activeThreadIds().isNotEmpty())
+            held.complete(Unit)
+            work.join()
+            assertTrue(recorder.activeThreadIds().isEmpty())
+        }
+
     /** The actual Copy formatter preserves long stage attribution and every numeric/native field. */
     @Test fun copiedReportRetainsCompleteStartupFieldsAndRejectsFreeText() {
         var clock = 0L

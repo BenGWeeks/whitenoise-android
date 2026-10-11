@@ -21,6 +21,8 @@ internal object StartupDiagnostics {
 
     @Volatile private var recorder: StartupDiagnosticRecorder? = null
     private var header = ""
+    private val threads = StartupDiagnosticThreads()
+    private var fileStore: StartupDiagnosticFileStore? = null
 
     val enabled: Boolean get() = BuildConfig.STARTUP_DIAGNOSTICS_ENABLED
 
@@ -35,7 +37,8 @@ internal object StartupDiagnostics {
             "app_sha=${BuildConfig.APP_SHORT_SHA}\nmdk_sha=${BuildConfig.MARMOT_SOURCE_SHA}\n" +
             "process_started_utc=${Instant.now()}\n"
         val store = StartupDiagnosticFileStore(File(context.filesDir, "startup_diagnostics"))
-        recorder = StartupDiagnosticRecorder(SystemClock::elapsedRealtime) { store.offer(header + it) }
+        fileStore = store
+        recorder = StartupDiagnosticRecorder(SystemClock::elapsedRealtime) { store.offer(header + it + threads.snapshot()) }
     }
 
     /** Records a genuinely new bootstrap; Retry merely observes the existing attempt. */
@@ -44,13 +47,26 @@ internal object StartupDiagnostics {
     }
 
     /** Adds timeout attribution from host memory even while a native call is stuck. */
-    fun timeoutDetail(): String? = recorder?.let { "${it.timeoutDetail()} mdk_sha=${BuildConfig.MDK_SHORT_SHA}" }
+    fun timeoutDetail(): String? =
+        recorder?.let {
+            captureThreads(it)
+            "${it.timeoutDetail()} mdk_sha=${BuildConfig.MDK_SHORT_SHA}"
+        }
 
     /** Attributes a thrown startup failure after unwind without retaining the throwable. */
-    fun failureDetail(): String? = recorder?.let { "${it.failureDetail()} mdk_sha=${BuildConfig.MDK_SHORT_SHA}" }
+    fun failureDetail(): String? =
+        recorder?.let {
+            captureThreads(it)
+            "${it.failureDetail()} mdk_sha=${BuildConfig.MDK_SHORT_SHA}"
+        }
 
     /** Snapshots without native queries or a potentially blocked file-writer flush. */
-    fun snapshot(): String? = recorder?.let { header + it.snapshot() }
+    fun snapshot(): String? = recorder?.let { header + it.snapshot() + threads.snapshot() }
+
+    /** Starts a native-independent stack query without waiting for its result or holding the recorder lock. */
+    private fun captureThreads(owner: StartupDiagnosticRecorder) {
+        threads.request(owner.activeThreadIds()) { snapshot()?.let { fileStore?.offer(it) } }
+    }
 
     /** Observes synchronous binding boundaries without altering their thread or cancellation policy. */
     fun <T> measure(

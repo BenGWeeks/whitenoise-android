@@ -9,6 +9,8 @@ import dev.ipf.marmotkit.AuditLogSettingsFfi
 import dev.ipf.marmotkit.MarmotInterface
 import dev.ipf.whitenoise.android.audio.DictationDiagnostics
 import dev.ipf.whitenoise.android.diagnostics.DmCreationDiagnostics
+import dev.ipf.whitenoise.android.diagnostics.StartupDiagnosticStage
+import dev.ipf.whitenoise.android.diagnostics.StartupDiagnostics
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
@@ -103,12 +105,24 @@ internal class AuditUploadConsent(
         DmCreationDiagnostics.setEnabled(false)
         startupUploadConfigured = false
         runtime.configureAuditRuntime(uploadConsentGranted = false)
-        if (!granted && runtime.auditLogSettings().enabled) {
-            check(preferences.edit().putBoolean(renewalKey, true).commit()) {
+        val needsRecordingRenewal =
+            !granted &&
+                StartupDiagnostics.measure(StartupDiagnosticStage.AUDIT_SETTINGS_READ) {
+                    runtime.auditLogSettings().enabled
+                }
+        if (needsRecordingRenewal) {
+            check(
+                StartupDiagnostics.measure(StartupDiagnosticStage.AUDIT_DISCLOSURE_SAVE) {
+                    preferences.edit().putBoolean(renewalKey, true).commit()
+                },
+            ) {
                 "Could not save audit disclosure renewal"
             }
             requiresChoice = true
-            runtime.setAuditLogSettings(runtime.auditLogSettings().copy(enabled = false))
+            val settings = StartupDiagnostics.measure(StartupDiagnosticStage.AUDIT_SETTINGS_READ) { runtime.auditLogSettings() }
+            StartupDiagnostics.stage(StartupDiagnosticStage.AUDIT_SETTINGS_WRITE) {
+                runtime.setAuditLogSettings(settings.copy(enabled = false))
+            }
         }
         if (granted) {
             startupUploadConfigured =
@@ -117,7 +131,10 @@ internal class AuditUploadConsent(
                     reportRejected = { Log.w("WhiteNoiseAudit", "v5 audit upload unavailable; retaining local logs") },
                 )
         }
-        val recording = runCatchingCancellable { runtime.auditLogSettings().enabled }.getOrDefault(false)
+        val recording =
+            StartupDiagnostics.measure(StartupDiagnosticStage.AUDIT_SETTINGS_READ) {
+                runCatchingCancellable { runtime.auditLogSettings().enabled }.getOrDefault(false)
+            }
         DictationDiagnostics.setEnabled(recording && granted)
         DmCreationDiagnostics.setEnabled(recording && granted)
     }
