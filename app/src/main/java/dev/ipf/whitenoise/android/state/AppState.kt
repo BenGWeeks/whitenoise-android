@@ -1255,6 +1255,7 @@ class WhiteNoiseAppState private constructor(
                     conversationDictationPreferences.current().silenceDeliveryMode
                 },
                 sendTranscriptIfOriginUnchanged = ::sendDictationTranscriptIfOriginUnchanged,
+                onSendBlocked = { presentTransient(R.string.dictation_send_blocked) },
             )
         }
 
