@@ -57,6 +57,11 @@ account listing and each attachment policy read/write. It records no call
 arguments or return values, including account identifiers and diagnostic IDs.
 Handled optional errors retain their existing fallback behavior.
 
+Suspendable stage observers update their last executing thread on every coroutine
+resume, including dispatcher hops; nested and parent observers retain separate
+context keys. Restore callbacks do not overwrite a newer observation. These are
+last-observed JVM threads, not a claim that a suspended Rust future runs on them.
+
 At a timeout or thrown bootstrap failure, one independent daemon samples JVM
 thread stacks. Active-stage thread IDs get priority, followed by the main thread.
 The bounded receipt includes capture UTC/duration, thread IDs/states, sanitized

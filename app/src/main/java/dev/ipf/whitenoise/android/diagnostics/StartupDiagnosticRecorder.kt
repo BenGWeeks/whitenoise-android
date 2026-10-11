@@ -1,5 +1,7 @@
 package dev.ipf.whitenoise.android.diagnostics
 
+import kotlinx.coroutines.withContext
+
 /** Fixed host boundaries; no native identifiers, paths, or exception text are accepted. */
 internal enum class StartupDiagnosticStage {
     CLIENT_CONSTRUCTION,
@@ -120,7 +122,19 @@ internal class StartupDiagnosticRecorder(
         val token = enter(stage)
         var result = PerformanceResult.FAILURE
         return try {
-            block().also { result = PerformanceResult.SUCCESS }
+            val observed =
+                withContext(
+                    StartupStageThreadObservation {
+                        synchronized(lock) {
+                            active[token]?.let { entry ->
+                                active[token] = entry.copy(threadId = Thread.currentThread().id)
+                            }
+                        }
+                    },
+                ) {
+                    runCatching { block() }
+                }
+            observed.getOrThrow().also { result = PerformanceResult.SUCCESS }
         } finally {
             exit(token, result)
         }

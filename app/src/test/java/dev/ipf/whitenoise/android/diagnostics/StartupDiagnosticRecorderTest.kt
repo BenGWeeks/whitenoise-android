@@ -3,20 +3,72 @@ package dev.ipf.whitenoise.android.diagnostics
 import dev.ipf.whitenoise.android.BuildConfig
 import dev.ipf.whitenoise.android.state.privacySafeErrorPresentation
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.util.concurrent.Executors
 
 /** Stalled native work remains observable independently of timeout, retries and persistence failures. */
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class StartupDiagnosticRecorderTest {
+    /** Parent and leaf observations follow each real dispatcher hop rather than retaining the entry caller. */
+    @Test fun suspendedStagesTrackTheirMostRecentlyExecutingThreadAcrossDispatchers() =
+        runTest {
+            val recorder = StartupDiagnosticRecorder({ 0L })
+            val first = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
+            val second = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
+            try {
+                recorder.stage(StartupDiagnosticStage.PRIVACY_RUNTIME_CONFIGURATION) {
+                    withContext(first) {
+                        val worker = Thread.currentThread().id
+                        assertEquals(setOf(worker), recorder.activeThreadIds)
+                        recorder.stage(StartupDiagnosticStage.TELEMETRY_RUNTIME_CONFIG) {
+                            withContext(second) {
+                                val resumed = Thread.currentThread().id
+                                assertTrue(resumed != worker)
+                                assertEquals(setOf(resumed), recorder.activeThreadIds)
+                                assertEquals(
+                                    2,
+                                    recorder.snapshot().lineSequence().count {
+                                        it.startsWith("active ") && it.contains("thread_id=$resumed")
+                                    },
+                                )
+                            }
+                            assertEquals(setOf(worker), recorder.activeThreadIds)
+                        }
+                    }
+                }
+                assertTrue(recorder.activeThreadIds.isEmpty())
+            } finally {
+                first.close()
+                second.close()
+            }
+        }
+
+    /** Observing a suspended operation preserves the original native error instead of recovering a copy. */
+    @Test fun suspendedStagePreservesOriginalError() =
+        runTest {
+            val recorder = StartupDiagnosticRecorder({ 0L })
+            val error = IllegalStateException("private exception")
+            val actual =
+                runCatching {
+                    recorder.stage(StartupDiagnosticStage.TELEMETRY_RUNTIME_CONFIG) { throw error }
+                }.exceptionOrNull()
+            assertSame(error, actual)
+            assertTrue(recorder.activeThreadIds.isEmpty())
+            assertTrue(recorder.failureDetail().contains("failed_stage=TELEMETRY_RUNTIME_CONFIG"))
+            assertFalse(recorder.snapshot().contains("private exception"))
+        }
+
     /** Distinguishes waiting for the audit lock from a held native call after acquiring it. */
     @Test fun auditMutexWaitAndAcquiredNativeCallHaveDifferentAttribution() =
         runTest {
