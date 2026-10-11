@@ -28,7 +28,7 @@ name: presentation-setup-relays-edit-review
 - eraseText: 1
 - assertNotVisible:
     id: setup.editor.writes
-    text: .+
+    text: (?s)^(?!Write relays$).+
 - inputText: wss://changed.example.invalid/
 - assertVisible:
     id: setup.editor.writes

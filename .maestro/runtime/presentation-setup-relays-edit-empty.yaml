@@ -28,7 +28,7 @@ name: presentation-setup-relays-edit-empty
 - eraseText: 1
 - assertNotVisible:
     id: setup.editor.writes
-    text: .+
+    text: (?s)^(?!Write relays$).+
 - hideKeyboard
 - tapOn:
     id: setup.editor.reads
@@ -46,7 +46,7 @@ name: presentation-setup-relays-edit-empty
 - eraseText: 1
 - assertNotVisible:
     id: setup.editor.reads
-    text: .+
+    text: (?s)^(?!Read relays$).+
 - hideKeyboard
 - assertVisible:
     id: setup-editor-save

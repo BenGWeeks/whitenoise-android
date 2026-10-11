@@ -34,8 +34,10 @@ import dev.ipf.whitenoise.android.ui.RecentEmojiRecentsOwner
 import dev.ipf.whitenoise.android.ui.theme.WhiteNoiseTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.StandardTestDispatcher
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -47,11 +49,12 @@ import org.robolectric.annotation.GraphicsMode
 import java.io.File
 
 @RunWith(RobolectricTestRunner::class)
+@OptIn(ExperimentalCoroutinesApi::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [36], qualifiers = "w360dp-h780dp-mdpi")
 class EmojiPickerRecentsBehaviorTest {
     @get:Rule
-    val composeRule = createComposeRule()
+    val composeRule = createComposeRule(effectContext = StandardTestDispatcher())
 
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)

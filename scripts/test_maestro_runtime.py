@@ -1479,7 +1479,12 @@ class RuntimeEvidenceTest(unittest.TestCase):
                 self.assertEqual(commands[index - 2], {'tapOn': '(?i)select all'})
                 self.assertEqual(commands[index - 1], {'assertVisible': {'id': tag, 'focused': True}})
                 self.assertEqual(command, {'eraseText': 1})
-                self.assertEqual(commands[index + 1], {'assertNotVisible': {'id': tag, 'text': '.+'}})
+                label = 'Write relays' if tag.endswith('writes') else 'Read relays'
+                pattern = f'(?s)^(?!{label}$).+'
+                self.assertEqual(commands[index + 1], {'assertNotVisible': {'id': tag, 'text': pattern}})
+                self.assertIsNone(re.fullmatch(pattern, label))
+                for residual in ('ample.invalid/path/', 'wss://Custom.example.invalid/path/', 'wss://one/\nwss://two/'):
+                    self.assertIsNotNone(re.fullmatch(pattern, residual))
             self.assertEqual(selected, expected)
             if name == 'review':
                 typed = next(i for i, c in enumerate(commands) if isinstance(c, dict) and 'inputText' in c)
