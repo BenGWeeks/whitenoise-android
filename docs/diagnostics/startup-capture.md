@@ -72,3 +72,9 @@ reveal a suspended Rust future or a native lock's owner; if the exact binding
 boundary is identified but its implementation remains opaque, use that evidence
 for targeted MDK investigation rather than attributing a native root cause to
 this host capture alone. No APK can guarantee capture of every possible stall.
+
+The diagnostic staging workflow also retains a separate
+`startup-diagnostic-evidence-<run>-<sha>` artifact: exact R8 mapping, MarmotKit
+pin and source/run/APK/mapping hash receipt. Keep this developer artifact alongside
+the signed APK so obfuscated JVM frames can be decoded without rebuilding. Send
+the APK to the affected user; retrieve the matching evidence for investigation.

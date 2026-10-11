@@ -262,6 +262,46 @@ jobs:
           # artifacts is another day those are extractable (#224).
           retention-days: 3
 
+      - name: Retain diagnostic build evidence
+        if: github.event_name == 'workflow_dispatch' && inputs.startup_diagnostics
+        shell: bash
+        run: |
+          python3 - <<'PYTHON'
+          import hashlib
+          import json
+          import os
+          import shutil
+          from pathlib import Path
+
+          apks = list(Path("app/build/outputs/apk/stagingZapstore/release").glob("whitenoise-staging-v8a-release-*.apk"))
+          if len(apks) != 1:
+              raise SystemExit("Expected one diagnostic staging APK")
+          evidence = Path("app/build/outputs/startup-diagnostic-evidence")
+          evidence.mkdir(parents=True, exist_ok=True)
+          mapping = Path("app/build/outputs/mapping/stagingZapstoreRelease/mapping.txt")
+          shutil.copyfile(mapping, evidence / "mapping.txt")
+          shutil.copyfile("app/src/main/marmotkit/MARMOT_VERSION", evidence / "MARMOT_VERSION")
+          receipt = {
+              "schema": "whitenoise-startup-build-v1",
+              "source_revision": os.environ["GITHUB_SHA"],
+              "run_id": os.environ["GITHUB_RUN_ID"],
+              "startup_diagnostics": True,
+              "apk_file": apks[0].name,
+              "apk_sha256": hashlib.sha256(apks[0].read_bytes()).hexdigest(),
+              "mapping_sha256": hashlib.sha256(mapping.read_bytes()).hexdigest(),
+          }
+          (evidence / "build-receipt.json").write_text(json.dumps(receipt, indent=2) + "\n")
+          PYTHON
+
+      - name: Upload diagnostic build evidence
+        if: github.event_name == 'workflow_dispatch' && inputs.startup_diagnostics
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: startup-diagnostic-evidence-${{ github.run_number }}-${{ steps.sha.outputs.short }}
+          path: app/build/outputs/startup-diagnostic-evidence/
+          if-no-files-found: error
+          retention-days: 3
+
   background-fixture:
     name: Build disposable-profile background fixture
     if: github.event_name == 'workflow_dispatch' && inputs.background_fixture && inputs.responsiveness_before_sha == ''
