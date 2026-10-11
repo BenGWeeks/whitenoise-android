@@ -17,9 +17,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowDownward
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -81,6 +78,9 @@ import dev.ipf.whitenoise.android.state.retryAttachmentTransfer
 import dev.ipf.whitenoise.android.state.voicePlaybackSource
 import dev.ipf.whitenoise.android.ui.conversation.messages.ConversationMessageMetrics
 import dev.ipf.whitenoise.android.ui.conversation.messages.ConversationRichContentShape
+import dev.ipf.whitenoise.android.ui.icons.Icons
+import dev.ipf.whitenoise.android.ui.icons.filled.ArrowDownward
+import dev.ipf.whitenoise.android.ui.icons.filled.Refresh
 import dev.ipf.whitenoise.android.ui.theme.isAmoledSurfaceTheme
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -301,7 +301,7 @@ internal fun MediaVoiceBubble(
             controller.hasCachedAttachment(messageIdHex, attachmentIndex)
         }
     val retainedPlaintextOnEntry =
-        mine && controller.pendingAttachmentsList(messageIdHex).getOrNull(attachmentIndex) != null
+        mine && controller.pendingAttachmentsList(messageIdHex).getOrNull(attachmentIndex)?.inMemoryBytes != null
     var totalDurationMs by remember(pillKey, epoch) { mutableIntStateOf(0) }
     var loading by remember(pillKey, epoch) { mutableStateOf(false) }
     var failed by remember(pillKey, epoch) { mutableStateOf(false) }
@@ -935,7 +935,7 @@ internal suspend fun materializeVoiceAttachment(
                     controller
                         .pendingAttachmentsList(messageIdHex)
                         .getOrNull(attachmentIndex)
-                        ?.plaintextBytes
+                        ?.inMemoryBytes
                 } else {
                     null
                 }

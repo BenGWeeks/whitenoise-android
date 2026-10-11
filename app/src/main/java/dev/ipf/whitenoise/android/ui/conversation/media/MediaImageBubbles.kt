@@ -16,10 +16,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowDownward
-import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -66,6 +62,10 @@ import dev.ipf.whitenoise.android.state.automaticAttachmentDownloadSuppressed
 import dev.ipf.whitenoise.android.state.retryAttachmentTransfer
 import dev.ipf.whitenoise.android.ui.conversation.messages.ConversationMessageMetrics
 import dev.ipf.whitenoise.android.ui.conversation.messages.ConversationRichContentShape
+import dev.ipf.whitenoise.android.ui.icons.Icons
+import dev.ipf.whitenoise.android.ui.icons.filled.ArrowDownward
+import dev.ipf.whitenoise.android.ui.icons.filled.Image
+import dev.ipf.whitenoise.android.ui.icons.filled.Refresh
 import dev.ipf.whitenoise.android.ui.theme.ScrimAlpha
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -201,7 +201,7 @@ internal fun MediaImageBubble(
         rememberImageAttachmentCacheAvailability(controller, key, attachmentIndex, epoch, presentation != null)
     var cachedPlaintextOnEntry by cacheAvailability.cached
     val retainedPlaintextOnEntry =
-        mine && controller.pendingAttachmentsList(key).getOrNull(attachmentIndex) != null
+        mine && controller.pendingAttachmentsList(key).getOrNull(attachmentIndex)?.inMemoryBytes != null
     // Auto-download gating (#10): retained/cached own bytes always render;
     // idle network fallback obeys policy. Once accepted, materialization stays
     // latched across policy recomposition so an active UI waiter is not lost.
@@ -676,7 +676,7 @@ internal fun MediaImageGridTile(
         )
     var cachedPlaintextOnEntry by cacheAvailability.cached
     val retainedPlaintextOnEntry =
-        mine && controller.pendingAttachmentsList(messageIdHex).getOrNull(attachmentIndex) != null
+        mine && controller.pendingAttachmentsList(messageIdHex).getOrNull(attachmentIndex)?.inMemoryBytes != null
     // Mirror the single-image bubble's auto-download gate (#10) so the
     // policy applies to album tiles too. Retained/cached outgoing bytes still
     // materialize during a pause, but a cache-missing network fallback waits

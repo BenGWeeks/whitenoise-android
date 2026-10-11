@@ -24,11 +24,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Language
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -92,7 +87,7 @@ import dev.ipf.whitenoise.android.ui.conversation.media.OpenAttachmentResult
 import dev.ipf.whitenoise.android.ui.conversation.media.attachmentTypeDescription
 import dev.ipf.whitenoise.android.ui.conversation.media.attachmentTypeLabel
 import dev.ipf.whitenoise.android.ui.conversation.media.fileIconFor
-import dev.ipf.whitenoise.android.ui.conversation.media.materializeDocumentAttachment
+import dev.ipf.whitenoise.android.ui.conversation.media.materializeDocumentFile
 import dev.ipf.whitenoise.android.ui.conversation.media.materializeVoiceAttachment
 import dev.ipf.whitenoise.android.ui.conversation.media.presentMediaLaunchFailure
 import dev.ipf.whitenoise.android.ui.conversation.media.presentMediaSaveOutcome
@@ -104,6 +99,11 @@ import dev.ipf.whitenoise.android.ui.conversation.media.saveDocumentWithFallback
 import dev.ipf.whitenoise.android.ui.conversation.media.shareImage
 import dev.ipf.whitenoise.android.ui.conversation.media.voicePlaybackKey
 import dev.ipf.whitenoise.android.ui.conversation.rememberForwardEligibilityNowSeconds
+import dev.ipf.whitenoise.android.ui.icons.Icons
+import dev.ipf.whitenoise.android.ui.icons.filled.Language
+import dev.ipf.whitenoise.android.ui.icons.filled.MoreVert
+import dev.ipf.whitenoise.android.ui.icons.filled.Pause
+import dev.ipf.whitenoise.android.ui.icons.filled.PlayArrow
 import dev.ipf.whitenoise.android.ui.theme.amoledSurfaceBorder
 import dev.ipf.whitenoise.android.ui.theme.amoledSurfaceBorderStroke
 import kotlinx.coroutines.Dispatchers
@@ -981,17 +981,20 @@ private fun FileLibraryRow(
     // in the library. Prefer retained bytes for own in-flight sends, mirroring
     // the conversation file bubble.
 
-    /** Loads the row's file bytes from the retained or downloaded attachment. */
+    /** The sender's in-memory retry bytes for this row, or null so the attachment is read from MDK. */
+    fun retainedBytes(): ByteArray? =
+        if (row.mine) {
+            controller
+                .pendingAttachmentsList(row.messageIdHex)
+                .getOrNull(row.attachmentIndex)
+                ?.inMemoryBytes
+        } else {
+            null
+        }
+
+    /** Loads the row's file bytes for Share from the retained or downloaded attachment, within the preview budget. */
     suspend fun fetchBytes(): ByteArray {
-        val retained =
-            if (row.mine) {
-                controller
-                    .pendingAttachmentsList(row.messageIdHex)
-                    .getOrNull(row.attachmentIndex)
-                    ?.plaintextBytes
-            } else {
-                null
-            }
+        val retained = retainedBytes()
         return controller
             .requestAttachmentTransfer(
                 messageIdHex = row.messageIdHex,
@@ -1001,14 +1004,15 @@ private fun FileLibraryRow(
             ).await()
     }
 
-    /** Materializes the row's document for opening or saving. */
+    /** Materializes the row's document for opening or saving by streaming it, whatever its size. */
     suspend fun fetchFile() =
-        materializeDocumentAttachment(
+        materializeDocumentFile(
             context = context,
+            controller = controller,
             messageIdHex = row.messageIdHex,
             attachmentIndex = row.attachmentIndex,
             reference = row.reference,
-            resolveBytes = { fetchBytes() },
+            retained = retainedBytes(),
         )
 
     Row(
