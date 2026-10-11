@@ -38,6 +38,7 @@ internal fun MaestroDictationPresentation(fixture: MaestroPresentationFixture) {
                 retryEnabled = fixture.scenario != "dictation-retry-disabled",
                 onRetry = { fixture.finish("retry") },
                 onDiscard = { fixture.record("discard") },
+                onKeepForLater = { fixture.finish("keep-later") },
                 onDismiss = { fixture.finish("dismiss") },
             )
         }

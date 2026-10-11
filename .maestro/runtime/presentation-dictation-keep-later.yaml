@@ -1,0 +1,10 @@
+appId: dev.ipf.whitenoise.android.maestrolab
+name: presentation-dictation-keep-later
+---
+- assertVisible: Remaining dictation audio
+- assertVisible: Recording stopped. Some audio is not transcribed.
+- assertVisible: Retry remaining audio
+- assertVisible: Discard
+- tapOn: Keep for later
+- assertVisible:
+    id: presentation.complete

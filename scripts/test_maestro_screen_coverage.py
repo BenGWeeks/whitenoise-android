@@ -152,6 +152,28 @@ class ScreenProofTest(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     qualify_presentation(case, {'presentation': missing})
 
+    def test_license_recovery_requires_retry_selection_and_return_in_order(self):
+        root = Path(__file__).resolve().parents[1]
+        cases = json.loads((root / 'config/maestro-runtime-cases.json').read_text())['cases']
+        case = cases['presentation-extra-licenses-failure-retry']
+        actions = ['retry', 'notice-selected', 'list-return', 'dismiss']
+        proof = {'scenario': case['presentation'], 'callbacks': actions, 'verified': True}
+        qualify_presentation(case, {'presentation': proof})
+        for callbacks in [actions[1:], actions[:-1], list(reversed(actions)),
+                          ['retry', 'retry', *actions[1:]], ['dismiss']]:
+            with self.assertRaises(ValueError):
+                qualify_presentation(case, {'presentation': {**proof, 'callbacks': callbacks}})
+
+    def test_keep_for_later_cannot_be_attested_as_generic_dismissal_or_discard(self):
+        root = Path(__file__).resolve().parents[1]
+        cases = json.loads((root / 'config/maestro-runtime-cases.json').read_text())['cases']
+        case = cases['presentation-dictation-keep-later']
+        proof = {'scenario': case['presentation'], 'callbacks': ['keep-later'], 'verified': True}
+        qualify_presentation(case, {'presentation': proof})
+        for callbacks in [['dismiss'], ['discard', 'dismiss'], ['retry'], ['keep-later', 'keep-later']]:
+            with self.assertRaises(ValueError):
+                qualify_presentation(case, {'presentation': {**proof, 'callbacks': callbacks}})
+
     def test_only_non_cancellable_overlays_admit_observation_without_dispatch(self):
         case = {'postcondition': 'presentation-observed', 'presentation': 'extra-wait-signout',
                 'presentation_actions': []}

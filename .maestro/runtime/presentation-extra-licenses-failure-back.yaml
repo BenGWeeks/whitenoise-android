@@ -1,0 +1,13 @@
+appId: dev.ipf.whitenoise.android.maestrolab
+name: presentation-extra-licenses-failure-back
+---
+- assertVisible: Open source licenses
+- assertVisible:
+    id: licenses.failed
+- assertVisible: Couldn’t open licenses
+- assertVisible: Retry
+- assertNotVisible:
+    id: licenses.list
+- back
+- assertVisible:
+    id: presentation.complete

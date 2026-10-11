@@ -2,8 +2,6 @@ package dev.ipf.whitenoise.android.maestro
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -23,6 +21,8 @@ import dev.ipf.whitenoise.android.ui.conversation.composer.MentionPicker
 import dev.ipf.whitenoise.android.ui.conversation.media.PendingStatusOverlay
 import dev.ipf.whitenoise.android.ui.conversation.messages.EditHistoryDialog
 import dev.ipf.whitenoise.android.ui.conversation.messages.MediaFooterOverlay
+import dev.ipf.whitenoise.android.ui.icons.Icons
+import dev.ipf.whitenoise.android.ui.icons.filled.MoreVert
 
 /** Production message chrome consumes deterministic state without publishing, deleting or transferring messages. */
 @Composable
