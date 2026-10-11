@@ -13,10 +13,29 @@ name: presentation-setup-relays-edit-review
     id: setup-editor-save
     enabled: false
 - tapOn:
-    text: wss://Custom.example.invalid/path/
-    index: 1
-- eraseText: 100
+    id: setup.editor.writes
+- longPressOn:
+    id: setup.editor.writes
+- runFlow:
+    when:
+      notVisible: (?i)select all
+    commands:
+    - tapOn: More options
+- tapOn: (?i)select all
+- assertVisible:
+    id: setup.editor.writes
+    focused: true
+- eraseText: 1
+- assertNotVisible:
+    id: setup.editor.writes
+    text: .+
 - inputText: wss://changed.example.invalid/
+- assertVisible:
+    id: setup.editor.writes
+    text: ^wss://changed\.example\.invalid/$
+- assertVisible:
+    id: setup.editor.reads
+    text: ^wss://Custom\.example\.invalid/path/$
 - hideKeyboard
 - assertVisible:
     id: setup-editor-save

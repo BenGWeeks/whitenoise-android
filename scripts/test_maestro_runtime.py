@@ -1462,6 +1462,32 @@ class RuntimeEvidenceTest(unittest.TestCase):
             self.assertEqual(commands[index + 1], {'assertNotVisible': {'id': tag, 'text': '.+'}})
         self.assertEqual(selected, ['person_profile.nickname', 'person_profile.notes'])
 
+    def test_setup_relay_edits_remove_complete_values_before_review(self):
+        """Captured center taps left a URL suffix in both empty and replacement inputs."""
+        for name, expected in (('empty', ['setup.editor.writes', 'setup.editor.reads']),
+                               ('review', ['setup.editor.writes'])):
+            _, commands = list(yaml.safe_load_all(
+                (runtime.ROOT / f'.maestro/runtime/presentation-setup-relays-edit-{name}.yaml').read_text()))
+            selected = []
+            for index, command in enumerate(commands):
+                if not isinstance(command, dict) or 'eraseText' not in command:
+                    continue
+                tag = commands[index - 4]['longPressOn']['id']
+                selected.append(tag)
+                self.assertEqual(commands[index - 3], {'runFlow': {
+                    'when': {'notVisible': '(?i)select all'}, 'commands': [{'tapOn': 'More options'}]}})
+                self.assertEqual(commands[index - 2], {'tapOn': '(?i)select all'})
+                self.assertEqual(commands[index - 1], {'assertVisible': {'id': tag, 'focused': True}})
+                self.assertEqual(command, {'eraseText': 1})
+                self.assertEqual(commands[index + 1], {'assertNotVisible': {'id': tag, 'text': '.+'}})
+            self.assertEqual(selected, expected)
+            if name == 'review':
+                typed = next(i for i, c in enumerate(commands) if isinstance(c, dict) and 'inputText' in c)
+                self.assertEqual(commands[typed + 1], {'assertVisible': {
+                    'id': 'setup.editor.writes', 'text': r'^wss://changed\.example\.invalid/$'}})
+                self.assertEqual(commands[typed + 2], {'assertVisible': {
+                    'id': 'setup.editor.reads', 'text': r'^wss://Custom\.example\.invalid/path/$'}})
+
     def test_private_boundary_dismisses_only_the_focused_editors_keyboard(self):
         """A second hideKeyboard sent Back after the IME closed, dismissing the unsaved dialog."""
         path = runtime.ROOT / '.maestro/runtime/profiles-private-boundary.yaml'
