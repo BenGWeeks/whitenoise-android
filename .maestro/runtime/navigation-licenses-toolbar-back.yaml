@@ -37,6 +37,10 @@ name: navigation-licenses-toolbar-back
 - assertVisible:
     id: licenses.list
 - tapOn: Back
+- scrollUntilVisible:
+    element:
+      id: about.licenses
+    direction: DOWN
 - assertVisible:
     id: about.licenses
 - tapOn:
@@ -46,6 +50,10 @@ name: navigation-licenses-toolbar-back
 - assertNotVisible:
     id: licenses.text
 - tapOn: Back
+- scrollUntilVisible:
+    element:
+      id: about.licenses
+    direction: DOWN
 - assertVisible:
     id: about.licenses
 - back

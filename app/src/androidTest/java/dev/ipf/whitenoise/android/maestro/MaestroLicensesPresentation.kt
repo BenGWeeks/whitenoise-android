@@ -17,7 +17,11 @@ internal fun MaestroLicensesPresentation(fixture: MaestroPresentationFixture) {
     val notice = remember { OpenSourceNotice("fixture", "Maestro local notice", "Complete local notice text") }
     var notices by remember {
         mutableStateOf<Result<List<OpenSourceNotice>>?>(
-            if (fixture.scenario == "extra-licenses-loading") null else Result.failure(IllegalStateException("Fixture")),
+            if (fixture.scenario == "extra-licenses-loading") {
+                null
+            } else {
+                Result.failure(IllegalStateException("Fixture"))
+            },
         )
     }
     var selected by remember { mutableStateOf<OpenSourceNotice?>(null) }
