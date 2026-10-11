@@ -71,7 +71,11 @@ internal fun formatStartupThreads(
                     appendLine("  frame=$owner.$method native=${frame.isNativeMethod} line=${frame.lineNumber}")
                 }
             }
-    }.take(MAX_STARTUP_THREAD_CHARS)
+    }.let { text ->
+        val truncated = text.length > MAX_STARTUP_THREAD_CHARS - THREAD_TRUNCATION_RESERVE
+        text.take(MAX_STARTUP_THREAD_CHARS - THREAD_TRUNCATION_RESERVE) +
+            "\nthreads_text_truncated=$truncated\n"
+    }
 
 /** ASCII code identifiers keep the UTF-8 share size bounded after secret-pattern scrubbing. */
 private fun startupFrameName(value: String): String =
@@ -80,6 +84,7 @@ private fun startupFrameName(value: String): String =
         .map { if (it in ' '..'~') it else '?' }
         .joinToString("")
 
+private const val THREAD_TRUNCATION_RESERVE = 32
 private const val NANOS_PER_MS = 1_000_000L
 private const val MAX_STARTUP_THREADS = 16
 private const val MAX_STARTUP_FRAMES = 16

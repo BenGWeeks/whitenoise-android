@@ -19,6 +19,7 @@ class StartupDiagnosticThreadsTest {
         val report = formatStartupThreads(all, setOf(preferred.id))
         assertTrue(report.contains("thread_id=${preferred.id}"))
         assertTrue(report.contains("observed_stage_thread=true"))
+        assertTrue(report.contains("threads_text_truncated=true"))
         assertTrue(report.toByteArray(Charsets.UTF_8).size <= 8 * 1024)
         assertFalse(report.contains(secret))
         assertFalse(report.contains("private-account"))

@@ -52,6 +52,7 @@ internal class StartupDiagnosticRecorder(
     private var failedStage: StartupDiagnosticStage? = null
     private val active = linkedMapOf<Long, Entry>()
     private val events = ArrayDeque<String>()
+    private var droppedEvents = 0L
 
     /** Starts only when a new underlying attempt starts; user Retry must not call this. */
     fun beginAttempt() =
@@ -131,6 +132,7 @@ internal class StartupDiagnosticRecorder(
             buildString {
                 appendLine("schema=whitenoise-startup-v1")
                 appendLine(detail())
+                appendLine("events_retained=${events.size} events_dropped=$droppedEvents")
                 failedStage?.let { appendLine("failed_stage=${it.name}") }
                 active.forEach { (token, entry) ->
                     appendLine(
@@ -155,7 +157,10 @@ internal class StartupDiagnosticRecorder(
 
     /** Adds fixed-schema events to a ring; sink faults never become application failures. */
     private fun addEvent(event: String) {
-        if (events.size == MAX_EVENTS) events.removeFirst()
+        if (events.size == MAX_EVENTS) {
+            events.removeFirst()
+            droppedEvents++
+        }
         events.addLast("elapsed_ms=${elapsed(processStartedAt)} attempt=$attempt $event")
         runCatching { persist(snapshot()) }
     }

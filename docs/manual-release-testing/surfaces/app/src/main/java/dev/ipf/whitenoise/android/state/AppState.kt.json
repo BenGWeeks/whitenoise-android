@@ -315,6 +315,14 @@
         "test_ids": [
           "DIC-002"
         ]
+      },
+      {
+        "surface": "Startup privacy dispatch and failure diagnostic receipt",
+        "source": "app/src/main/java/dev/ipf/whitenoise/android/state/AppState.kt",
+        "anchor": "StartupDiagnosticStage.PRIVACY_DISPATCH",
+        "test_ids": [
+          "INT-012"
+        ]
       }
     ]
   },

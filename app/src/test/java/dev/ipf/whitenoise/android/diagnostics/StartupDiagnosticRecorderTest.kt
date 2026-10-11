@@ -182,6 +182,7 @@ class StartupDiagnosticRecorderTest {
         val snapshot = recorder.snapshot()
         val eventCount = snapshot.lineSequence().count { it.startsWith("elapsed_ms=") }
         assertEquals(StartupDiagnosticRecorder.MAX_EVENTS, eventCount)
+        assertTrue(snapshot.contains("events_dropped=805"))
         assertTrue(snapshot.toByteArray().size < MAX_STARTUP_REPORT_BYTES)
         assertTrue(snapshot.contains("attempt=1"))
     }

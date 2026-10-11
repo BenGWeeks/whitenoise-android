@@ -63,7 +63,8 @@ The bounded receipt includes capture UTC/duration, thread IDs/states, sanitized
 code class/method names, native-frame flags and line numbers. Thread names,
 source filenames, private paths, locals and exception text are excluded. At most
 16 threads and 16 frames each are retained within an 8 KiB ASCII receipt. The
-report says when sampling is pending or unavailable; retries cannot start extra
+report says when sampling is pending or unavailable, counts dropped history events
+and explicitly marks truncated thread text; retries cannot start extra
 blocked samplers. The full report remains limited to 32 KiB. Capture does not
 wait for a native call, acquire the audit mutex, or query MDK storage.
 
