@@ -653,6 +653,9 @@ internal fun ConversationScreen(
     // misattributes "is me" nor resets scroll/selection state when the
     // active ref catches up.
     val conversationAccountRef = controller.boundAccountRef
+    val translationPreferences =
+        dev.ipf.whitenoise.android.translation
+            .rememberTranslationPreferences()
     val conversationSelfAccountIdHex = controller.boundAccountIdHex
     val presentationState =
         surfaceState
@@ -718,6 +721,7 @@ internal fun ConversationScreen(
     // Keyed on the controller as well as chat.id so the same shared group under
     // another account cannot inherit this account's details route.
     var showDetails by presentationState.showDetails
+
     var pendingTopBarLeaveAction by remember { mutableStateOf<LeaveAction?>(null) }
     // Sole-admin Leave gate: a sole admin with other members can't leave until
     // they hand admin to someone else. Instead of the old toast-only dead end,
@@ -818,6 +822,15 @@ internal fun ConversationScreen(
     var measuredBottomChromeHeightPx by bottomInsetState.measuredBottomChromeHeightPx
     var bottomInputRevision by bottomInsetState.bottomInputRevision
     var routePresentationFrozen by bottomInsetState.routePresentationFrozen
+    val translationSession =
+        dev.ipf.whitenoise.android.translation.rememberConversationTranslation(
+            appState,
+            conversationAccountRef,
+            controller.group.groupIdHex,
+            translationPreferences,
+            routeActive = !routeTransitionInProgress && !routePresentationFrozen && !showDetails,
+        )
+
     val freezeRoutePresentation =
         conversationRoutePresentationShouldFreeze(
             routeTransitionInProgress = routeTransitionInProgress,
@@ -1112,7 +1125,8 @@ internal fun ConversationScreen(
                         !isBatchSelectableMessage(
                             messageId = messageId,
                             userVisibleMessage = MessageProjector.isChatKind(record.kind),
-                            committedMessage = item.status == MessageStatus.Received || item.status == MessageStatus.Sent,
+                            committedMessage =
+                                item.status == MessageStatus.Received || item.status == MessageStatus.Sent,
                             projectedDeleted = item.projected?.deleted == true,
                             deletedMessageIds = controller.deletedMessageIds,
                         )
@@ -1157,7 +1171,15 @@ internal fun ConversationScreen(
                                     } else {
                                         MessageProjector.copyableText(record, editedText)
                                     },
-                                forwardableText = if (invalidated) null else MessageProjector.forwardableText(record, editedText),
+                                forwardableText =
+                                    if (invalidated) {
+                                        null
+                                    } else {
+                                        MessageProjector.forwardableText(
+                                            record,
+                                            editedText,
+                                        )
+                                    },
                                 // Same authoritative accessor the single-message
                                 // surface and the mutation guard use, so bulk
                                 // routing never diverges from per-message policy.
@@ -2149,7 +2171,9 @@ internal fun ConversationScreen(
     DisposableEffect(controller, chat.id) {
         val ownerKey = controller.group.groupIdHex
         val unregister =
-            dev.ipf.whitenoise.android.audio.VoicePlaybackController.registerCompletionCallback(ownerKey) { completedKey ->
+            dev.ipf.whitenoise.android.audio.VoicePlaybackController.registerCompletionCallback(
+                ownerKey,
+            ) { completedKey ->
                 val completedMsgId = completedKey.substringBefore('#')
                 val completedIdx = controller.timeline.indexOfFirst { it.record.messageIdHex == completedMsgId }
                 if (completedIdx >= 0) {
@@ -2365,7 +2389,8 @@ internal fun ConversationScreen(
     fun saveQuickReactionEmojis(choices: List<String>) {
         quickReactionEmojisTouched = true
         scope.launch {
-            quickReactionEmojis = withContext(Dispatchers.IO) { RecentEmojiPreferences.saveQuickReactions(context, choices) }
+            quickReactionEmojis =
+                withContext(Dispatchers.IO) { RecentEmojiPreferences.saveQuickReactions(context, choices) }
         }
     }
 
@@ -4022,6 +4047,8 @@ internal fun ConversationScreen(
         },
     ) { padding ->
         CompositionLocalProvider(
+            dev.ipf.whitenoise.android.translation.LocalConversationTranslation provides translationSession,
+            dev.ipf.whitenoise.android.translation.LocalTranslationPreferences provides translationPreferences,
             LocalPollVotesHost provides pollVotesHost,
             LocalKeptMessages provides keptMessagesController,
             // Bubbles mark their own matches while search is open, so a hit is obvious on any
@@ -4428,7 +4455,10 @@ internal fun ConversationScreen(
                                                 CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
                                             } else {
                                                 IconButton(onClick = { scope.launch { controller.loadOlder() } }) {
-                                                    Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.refresh))
+                                                    Icon(
+                                                        Icons.Default.Refresh,
+                                                        contentDescription = stringResource(R.string.refresh),
+                                                    )
                                                 }
                                             }
                                         }

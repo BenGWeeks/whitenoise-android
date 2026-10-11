@@ -15,6 +15,7 @@ internal enum class MessageActionKind {
     CopyText,
     Speak,
     SpeakCodeLiterally,
+    Translate,
     Forward,
     KeepOnScreen,
     Share,
@@ -46,6 +47,7 @@ internal fun messageActionKinds(
     canCopyText: Boolean,
     canSpeak: Boolean,
     canSpeakCodeLiterally: Boolean = false,
+    canTranslate: Boolean = false,
     canForward: Boolean,
     canKeepOnScreen: Boolean = false,
     canShare: Boolean = false,
@@ -64,6 +66,7 @@ internal fun messageActionKinds(
         if (canShare) add(MessageActionKind.Share)
         if (canSave) add(MessageActionKind.Save)
         if (canCopyText) add(MessageActionKind.CopyText)
+        if (canTranslate) add(MessageActionKind.Translate)
         if (canSpeak) add(MessageActionKind.Speak)
         if (canSpeak && canSpeakCodeLiterally) add(MessageActionKind.SpeakCodeLiterally)
         if (canSelect) add(MessageActionKind.Select)
@@ -116,6 +119,7 @@ internal fun messageActionLabel(kind: MessageActionKind): String =
         MessageActionKind.CopyText -> stringResource(R.string.copy)
         MessageActionKind.Speak -> stringResource(R.string.read_aloud)
         MessageActionKind.SpeakCodeLiterally -> stringResource(R.string.read_code_literally)
+        MessageActionKind.Translate -> stringResource(R.string.translation_title)
         MessageActionKind.Forward -> stringResource(R.string.forward)
         MessageActionKind.KeepOnScreen -> stringResource(R.string.floating_keep)
         MessageActionKind.Share -> stringResource(R.string.shared_media_share)
@@ -134,6 +138,7 @@ internal fun messageActionIconRes(kind: MessageActionKind): Int =
         MessageActionKind.SelectText -> R.drawable.ic_text_fields
         MessageActionKind.CopyText -> R.drawable.ic_content_copy
         MessageActionKind.Speak, MessageActionKind.SpeakCodeLiterally -> R.drawable.ic_volume_up
+        MessageActionKind.Translate -> R.drawable.ic_text_fields
         MessageActionKind.Forward -> R.drawable.ic_forward
         MessageActionKind.Report -> R.drawable.ic_emoji_flags
         MessageActionKind.KeepOnScreen -> R.drawable.ic_floating_message

@@ -622,6 +622,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_11
     }
     buildFeatures {
+        aidl = true
         compose = true
         buildConfig = true
     }
@@ -1129,6 +1130,7 @@ dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.messaging)
     implementation(libs.play.services.base)
+    implementation("com.google.ai.edge.litertlm:litertlm-android:0.18.0")
     implementation(libs.androidx.security.crypto)
     implementation(libs.androidx.biometric)
     implementation(libs.androidx.work.runtime)
