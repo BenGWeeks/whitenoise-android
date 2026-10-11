@@ -27,8 +27,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -91,6 +89,8 @@ import dev.ipf.whitenoise.android.ui.conversation.CompactViableComposerHeight
 import dev.ipf.whitenoise.android.ui.conversation.composerMultilineControlsSuppressed
 import dev.ipf.whitenoise.android.ui.conversation.replies.ReplyPreviewCard
 import dev.ipf.whitenoise.android.ui.conversation.resolveAutomaticComposerCeiling
+import dev.ipf.whitenoise.android.ui.icons.Icons
+import dev.ipf.whitenoise.android.ui.icons.filled.Delete
 import dev.ipf.whitenoise.android.ui.theme.amoledSurfaceBorderStroke
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
@@ -1284,9 +1284,17 @@ internal fun ComposerBar(
                         },
                     )
                 }
-                if (dictationOwnedByComposer && dictationController?.recoveryHandedToComposer == true) {
+                val parkedDictationAudio =
+                    dictationController != null &&
+                        dictationAccountRef != null &&
+                        dictationGroupIdHex != null &&
+                        dictationController.hasParkedComposerAudio(dictationAccountRef, dictationGroupIdHex)
+                val showDictationRecovery =
+                    (dictationOwnedByComposer && dictationController?.recoveryHandedToComposer == true) ||
+                        parkedDictationAudio
+                if (showDictationRecovery) {
                     ConversationDictationRecoveryStatus(
-                        dictationController.composerAccess(
+                        checkNotNull(dictationController).composerAccess(
                             checkNotNull(dictationAccountRef),
                             checkNotNull(dictationGroupIdHex),
                         ),
