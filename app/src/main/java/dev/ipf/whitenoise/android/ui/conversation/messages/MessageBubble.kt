@@ -1512,12 +1512,7 @@ internal fun MessageBubble(
             (
                 bubbleMedia.files.isNotEmpty() ||
                     (
-                        showPendingPlaceholder &&
-                            pendingAttachmentsForRecord.any { pending ->
-                                !pending.mediaType.startsWith("image/", ignoreCase = true) &&
-                                    !pending.mediaType.startsWith("video/", ignoreCase = true) &&
-                                    !pending.mediaType.startsWith("audio/", ignoreCase = true)
-                            }
+                        showPendingPlaceholder && pendingAttachmentsForRecord.any(::isPendingGeneralFile)
                     )
             )
     val messageTextDoubleTap: (Offset) -> Unit = { position ->
@@ -2284,6 +2279,7 @@ internal fun MessageBubble(
                                 presentation = bubblePresentation,
                             )
                         ReplyPreviewCard(
+                            appState = appState,
                             receivedEmoji = replyReceivedEmoji,
                             senderTitle =
                                 if (preview.originalUnavailable) {
@@ -2863,6 +2859,7 @@ internal fun MessageBubble(
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 replyPreview?.let { preview ->
                                     ReplyPreviewCard(
+                                        appState = appState,
                                         receivedEmoji = replyReceivedEmoji,
                                         senderTitle =
                                             if (preview.originalUnavailable) {
@@ -2930,6 +2927,7 @@ internal fun MessageBubble(
                                     replyPreview?.let { preview ->
                                         {
                                             ReplyPreviewCard(
+                                                appState = appState,
                                                 receivedEmoji = replyReceivedEmoji,
                                                 senderTitle =
                                                     if (preview.originalUnavailable) {

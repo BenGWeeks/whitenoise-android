@@ -520,6 +520,10 @@ internal fun profilePromotableGroupsState(
     }
 }
 
+/** A failed account-wide read leaves the picker incomplete, so it reports FAILED and offers Retry. */
+private fun ProfileGroupPickerState.failedWhenAccountWideReadFailed(accountWide: ProfileAccountWideGroups) =
+    if (accountWide.readFailed) copy(loadState = ProfileGroupPickerLoadState.FAILED) else this
+
 private fun profileGroupPickerAccounts(
     activeAccountIdHex: String?,
     targetAccountIdHex: String,
@@ -3123,6 +3127,13 @@ class ChatsController private constructor(
 
     private fun memberSnapshotNeedsFetch(groupIdHex: String): Boolean = !memberCacheByGroup.containsKey(groupIdHex)
 
+    /** Whether an authoritative roster is cached for [groupIdHex], whether or not the window retains its row. */
+    internal fun hasMemberSnapshot(groupIdHex: String): Boolean = memberCacheByGroup.containsKey(groupIdHex)
+
+    /** Folds one record exactly as the account-wide chats subscription does, for chats outside the window. */
+    @VisibleForTesting
+    internal fun foldGroupRecordForTest(record: AppGroupRecordFfi) = foldGroup(record)
+
     /**
      * Seed every current chat row's identifier-only roster before publishing
      * the first local frame. MDK answers each page from its command-ready local
@@ -3927,48 +3938,36 @@ class ChatsController private constructor(
             ?.let { intent -> group?.copy(archived = intent.archived) }
             ?: group
 
-    fun sharedGroupsWith(
-        accountIdHex: String,
-        activeAccountIdHex: String?,
-    ): List<ChatListItem> {
-        val normalizedAccount = accountIdHex.trim().takeIf { it.isNotEmpty() } ?: return emptyList()
-        val normalizedActive = activeAccountIdHex?.trim()?.takeIf { it.isNotEmpty() } ?: return emptyList()
-        return chatRows
-            .asSequence()
-            .filter { row ->
-                val members = memberCacheByGroup[row.groupIdHex] ?: return@filter false
-                members.any { it.memberIdHex.equals(normalizedAccount, ignoreCase = true) } &&
-                    members.any { it.memberIdHex.equals(normalizedActive, ignoreCase = true) }
-            }.map { projectChatRow(it, activeAccountIdHex) }
-            .toList()
-    }
-
     fun profileAddableGroups(
         targetAccountIdHex: String,
         activeAccountIdHex: String?,
     ): List<ChatListItem> = profileAddableGroupsState(targetAccountIdHex, activeAccountIdHex).groups
 
+    /** Groups [targetAccountIdHex] can be added to, including those [accountWide] holds beyond the window. */
     internal fun profileAddableGroupsState(
         targetAccountIdHex: String,
         activeAccountIdHex: String?,
+        accountWide: ProfileAccountWideGroups = ProfileAccountWideGroups(),
     ): ProfileGroupPickerState =
         profileAddableGroupsState(
-            items = currentProjectedItems(activeAccountIdHex),
+            items = mergeForwardTargets(currentProjectedItems(activeAccountIdHex), accountWide.items()),
             targetAccountIdHex = targetAccountIdHex,
             activeAccountIdHex = activeAccountIdHex,
-            failedGroupIds = failedMemberFetches,
-        )
+            failedGroupIds = failedMemberFetches + accountWide.failedGroupIds,
+        ).failedWhenAccountWideReadFailed(accountWide)
 
+    /** Groups [targetAccountIdHex] can be made an admin of, including those [accountWide] holds beyond the window. */
     internal fun profilePromotableGroupsState(
         targetAccountIdHex: String,
         activeAccountIdHex: String?,
+        accountWide: ProfileAccountWideGroups = ProfileAccountWideGroups(),
     ): ProfileGroupPickerState =
         profilePromotableGroupsState(
-            items = currentProjectedItems(activeAccountIdHex),
+            items = mergeForwardTargets(currentProjectedItems(activeAccountIdHex), accountWide.items()),
             targetAccountIdHex = targetAccountIdHex,
             activeAccountIdHex = activeAccountIdHex,
-            failedGroupIds = failedMemberFetches,
-        )
+            failedGroupIds = failedMemberFetches + accountWide.failedGroupIds,
+        ).failedWhenAccountWideReadFailed(accountWide)
 
     /**
      * The confirmed, still-active 1:1 DM with [reference] (npub or hex), or
@@ -8574,7 +8573,10 @@ class ConversationController(
                     .withGroupCommitLock(account, group.groupIdHex) {
                         requireOptimisticSendNotCancelled(key)
                         val outcome =
-                            withNativeTransferControl(retained::attachTransferCancel) { control ->
+                            withNativeTransferControl(
+                                retained::attachTransferCancel,
+                                onProgress = retained::reportTransferProgress,
+                            ) { control ->
                                 appState.marmotIo(MarmotTraceSection.MEDIA_UPLOAD) {
                                     uploadOrAdmitComposerMediaFilesWithToken(
                                         account,
@@ -9178,6 +9180,8 @@ class ConversationController(
                     return
                 }
             discardedDuringRetry.remove(key)
+            // Every attempt reports its own transfer from the start, so a Retry never shows the last one's bytes.
+            retained.clearTransferProgress()
             try {
                 // Reuse the references if a prior attempt already uploaded the
                 // blobs (publish-only failure) — re-uploading would orphan
@@ -9555,6 +9559,8 @@ class ConversationController(
                     if (BuildConfig.DEBUG) Log.w("DMConversation", "post-acceptance media settlement failed", throwable)
                     return
                 }
+                // A failed bubble offers Retry, not the bytes of the attempt that failed.
+                retained.clearTransferProgress()
                 optimisticMessages[key] =
                     TimelineMessage(
                         key,
@@ -10787,6 +10793,15 @@ class ConversationController(
             .get("msg:$messageIdHex")
             ?.attachments
             .orEmpty()
+
+    /**
+     * Byte progress of the single-file send still pending as [messageIdHex], or null when it has none to
+     * show: an album, a send held in memory, or a message that is no longer pending here.
+     */
+    internal fun pendingUploadProgress(messageIdHex: String): StateFlow<FileUploadProgress?>? {
+        val retained = retainedMediaUploads.get("msg:$messageIdHex") ?: return null
+        return retained.uploadProgress
+    }
 
     /**
      * Drop all retained outgoing JPEG bytes. Called when leaving the

@@ -563,13 +563,21 @@ internal fun MediaVisualGridBubble(
     // Five frames at most; the last one carries the "+N" overflow chip.
     val visible = attachments.take(MAX_VISIBLE_GALLERY_FRAMES)
 
-    /** Opens one grid attachment through the row-independent mixed-media session owner. */
+    /**
+     * Opens one grid attachment through the row-independent mixed-media session owner. A video still being sent from
+     * its staged file has nothing to show yet, so the viewer leaves it out, and a tap that names it, as its "+N"
+     * overflow tile does, opens at the next item that can be shown.
+     */
     fun dispatchViewerOpen(attachmentIndex: Int) {
+        val openable =
+            attachments.filterNot { controller.isSendingFromStagedFile(record.messageIdHex, it.index, mine) }
+        val opening =
+            openable.firstOrNull { it.index >= attachmentIndex } ?: openable.lastOrNull() ?: return
         onOpenConversationMedia(
             ConversationMediaViewerOpenRequest(
                 messageIdHex = record.messageIdHex,
-                attachments = attachments,
-                tappedAttachmentIndex = attachmentIndex,
+                attachments = openable,
+                tappedAttachmentIndex = opening.index,
                 sender = record.sender,
                 recordedAt = record.recordedAt,
                 mine = mine,

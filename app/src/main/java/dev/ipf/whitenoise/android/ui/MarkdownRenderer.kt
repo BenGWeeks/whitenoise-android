@@ -438,9 +438,8 @@ private fun MarkdownBodyText(
                 }
         }
 
-    Text(
+    MarkdownTimestampText(
         text = text,
-        inlineContent = EmojiShortcodes.content(),
         modifier =
             modifier
                 .then(accessibilityModifier)
@@ -1337,6 +1336,7 @@ private fun MarkdownTableRowView(
     }
 }
 
+/** Projects [inlines] once per content, colour, mention or timestamp revision change. */
 @Composable
 private fun rememberMarkdownInlineText(
     inlines: List<MarkdownInlineFfi>,
@@ -1349,10 +1349,11 @@ private fun rememberMarkdownInlineText(
     // string when a profile arrives.
     val mentionBech32s = remember(inlines) { markdownInlineMentionBech32s(inlines) }
     val mentionNames = resolveMentionNames(mentionBech32s, ctx.mentionDisplayName)
+    val timestampRevision = rememberTimestampRevision(remember(inlines) { markdownInlineTimestamps(inlines) })
     // Links must derive from the content color like every other accent:
     // colorScheme.primary disappears on the outgoing bubble, whose container
     // IS primary. Underline alone carries the affordance on both surfaces.
-    return remember(inlines, contentColor, ctx, mentionNames) {
+    return remember(inlines, contentColor, ctx, mentionNames, timestampRevision) {
         markdownInlinesToAnnotatedString(
             inlines = inlines,
             codeStyle =
@@ -1524,7 +1525,7 @@ private fun AnnotatedString.Builder.appendMarkdownInlines(
                     append(markdownSafeDisplayText(inline.url, Int.MAX_VALUE))
                 }
             }
-            is MarkdownInlineFfi.Timestamp -> append(markdownTimestampLiteral(inline))
+            is MarkdownInlineFfi.Timestamp -> appendMarkdownTimestamp(inline)
             is MarkdownInlineFfi.Math -> withStyle(ctx.codeStyle) { append(markdownSafeDisplayText(inline.content, Int.MAX_VALUE)) }
             is MarkdownInlineFfi.NostrMention -> appendNostrEntity(inline.entity, mention = true, ctx)
             is MarkdownInlineFfi.NostrUri -> appendNostrEntity(inline.entity, mention = false, ctx)
@@ -1691,6 +1692,7 @@ internal fun resolveMentionsInPlaintext(
         "@$visible$trailingPunctuation"
     }
 
+/** Appends a link label whose hit target skips each timestamp clock, so the clock keeps its own disclosure. */
 private fun AnnotatedString.Builder.appendMarkdownLink(
     dest: String,
     children: List<MarkdownInlineFfi>,
@@ -1712,25 +1714,40 @@ private fun AnnotatedString.Builder.appendMarkdownLink(
         // labels open directly like autolinks; a label carrying host-shaped
         // text that doesn't match the destination routes through the
         // confirmation dialog that shows the real URL.
-        if (shouldConfirmMarkdownLink(markdownInlinePlainText(visible), parsedLink.destination)) {
-            withLink(
+        val annotation =
+            if (shouldConfirmMarkdownLink(markdownInlinePlainText(visible), parsedLink.destination)) {
                 LinkAnnotation.Clickable(
                     CONFIRM_LINK_TAG_PREFIX + parsedLink.destination,
                     TextLinkStyles(style = ctx.linkStyle),
                     ctx.linkListener,
-                ),
-            ) {
-                appendMarkdownInlines(visible, ctx, depth)
+                )
+            } else {
+                LinkAnnotation.Url(parsedLink.destination, TextLinkStyles(style = ctx.linkStyle), ctx.linkListener)
             }
-        } else {
-            withLink(
-                LinkAnnotation.Url(parsedLink.destination, TextLinkStyles(style = ctx.linkStyle), ctx.linkListener),
-            ) {
-                appendMarkdownInlines(visible, ctx, depth)
-            }
+        val label = buildAnnotatedString { appendMarkdownInlines(visible, ctx, depth) }
+        val start = length
+        append(label)
+        var cursor = 0
+        // Do not cover a native clock with Compose's link hit target. The label still navigates.
+        for (timestamp in label.getStringAnnotations(TIMESTAMP_TAG, 0, label.length)) {
+            if (cursor < timestamp.start) addMarkdownLinkRange(annotation, start + cursor, start + timestamp.start)
+            cursor = timestamp.start + 1
         }
+        if (cursor < label.length) addMarkdownLinkRange(annotation, start + cursor, start + label.length)
     } else {
         appendMarkdownInlines(visible, ctx, depth)
+    }
+}
+
+/** Applies one link [annotation] to a sub-range of a split link label. */
+private fun AnnotatedString.Builder.addMarkdownLinkRange(
+    annotation: LinkAnnotation,
+    start: Int,
+    end: Int,
+) {
+    when (annotation) {
+        is LinkAnnotation.Url -> addLink(annotation, start, end)
+        is LinkAnnotation.Clickable -> addLink(annotation, start, end)
     }
 }
 
@@ -1803,7 +1820,7 @@ internal fun markdownInlinePlainText(inlines: List<MarkdownInlineFfi>): String =
                     is MarkdownInlineFfi.Text -> append(inline.content)
                     is MarkdownInlineFfi.Code -> append(inline.content)
                     is MarkdownInlineFfi.Math -> append(inline.content)
-                    is MarkdownInlineFfi.Timestamp -> append(markdownTimestampLiteral(inline))
+                    is MarkdownInlineFfi.Timestamp -> append(inline.localLabel())
                     is MarkdownInlineFfi.Autolink -> append(inline.url)
                     is MarkdownInlineFfi.Emph -> walk(inline.children)
                     is MarkdownInlineFfi.Strong -> walk(inline.children)
@@ -1835,7 +1852,8 @@ internal fun rememberMarkdownPreviewText(
         } else {
             mentionBech32s.associateWith(mentionDisplayName)
         }
-    return remember(document, contentColor, mentionNames) {
+    val timestampRevision = rememberTimestampRevision(remember(document) { markdownDocumentTimestamps(document) })
+    return remember(document, contentColor, mentionNames, timestampRevision) {
         markdownDocumentToPreviewAnnotatedString(
             document = document,
             codeStyle =
@@ -1887,10 +1905,20 @@ internal fun markdownDocumentToPreviewAnnotatedString(
                         MarkdownPreviewStyle.Bold -> SpanStyle(fontWeight = FontWeight.Bold)
                         MarkdownPreviewStyle.Italic -> SpanStyle(fontStyle = FontStyle.Italic)
                         MarkdownPreviewStyle.Strike -> SpanStyle(textDecoration = TextDecoration.LineThrough)
+                        MarkdownPreviewStyle.Timestamp -> SpanStyle()
                     }
                 addStyle(style, range.start, range.end)
                 if (range.style == MarkdownPreviewStyle.Code) {
                     addStringAnnotation(EmojiShortcodes.LITERAL_TAG, "", range.start, range.end)
+                }
+                range.timestampToken?.let { token ->
+                    addStringAnnotation(TIMESTAMP_TAG, token, range.start, range.end)
+                    addStringAnnotation(
+                        markdownTimestampInlineContentTag,
+                        "markdown-timestamp-clock:" + token,
+                        range.start,
+                        range.start + 1,
+                    )
                 }
             }
         },
