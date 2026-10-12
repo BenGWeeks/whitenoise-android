@@ -46,18 +46,24 @@ internal suspend fun translateWithPrivacyGate(
     target: String,
     acknowledgedIdentity: TranslationEngineIdentity? = null,
 ): String {
-    if (text.isBlank() ||
-        text.length > MAX_TRANSLATION_TEXT ||
-        (source.isNotEmpty() && !translationLanguageValid(source)) ||
-        !translationLanguageValid(target)
-    ) {
-        throw TranslationException(TranslationFailure.INVALID_REQUEST)
-    }
+    validateTranslationInput(text, source, target)
     if (engine.trust == TranslationTrust.NETWORK_CAPABLE && acknowledgedIdentity != engine.identity) {
         throw TranslationException(TranslationFailure.CONSENT_REQUIRED)
     }
     return engine.translate(text, source, target).also {
         if (it.isBlank() || it.length > MAX_TRANSLATION_TEXT) throw TranslationException(TranslationFailure.ENGINE)
+    }
+}
+
+private fun validateTranslationInput(
+    text: String,
+    source: String,
+    target: String,
+) {
+    val validText = text.isNotBlank() && text.length <= MAX_TRANSLATION_TEXT
+    val validSource = source.isEmpty() || translationLanguageValid(source)
+    if (!validText || !validSource || !translationLanguageValid(target)) {
+        throw TranslationException(TranslationFailure.INVALID_REQUEST)
     }
 }
 

@@ -114,6 +114,45 @@ class MessageTranslationStateTest {
             assertFalse(session.isPending(source.copy(messageId = "0")))
         }
 
+    @Test
+    fun explicitManualSourceReplacesAutomaticWorkAndRejectsItsLateResult() =
+        runTest {
+            val automatic = CompletableDeferred<String>()
+            val languages = mutableListOf<String>()
+            val session =
+                ConversationTranslationSession(backgroundScope, {
+                    object : TranslationEngine {
+                        override val identity = TranslationEngineIdentity("local", "verified", 1)
+                        override val trust = TranslationTrust.LOCAL
+
+                        override suspend fun translate(
+                            text: String,
+                            source: String,
+                            target: String,
+                        ): String {
+                            languages.add(source)
+                            return if (source.isEmpty()) {
+                                withContext(NonCancellable) { automatic.await() }
+                            } else {
+                                "explicit source rendition"
+                            }
+                        }
+                    }
+                }, { true })
+            session.request(source, automatic = true)
+            runCurrent()
+            // The production manual action clears matching work before submitting the selected language.
+            session.retry()
+            session.remove(source)
+            session.request(source, from = "en")
+            runCurrent()
+            assertEquals(listOf("", "en"), languages)
+            assertEquals("explicit source rendition", session.renditions[source]?.text)
+            automatic.complete("obsolete detected-language rendition")
+            runCurrent()
+            assertEquals("explicit source rendition", session.renditions[source]?.text)
+        }
+
     private fun session(
         scope: CoroutineScope,
         current: () -> Boolean = { true },

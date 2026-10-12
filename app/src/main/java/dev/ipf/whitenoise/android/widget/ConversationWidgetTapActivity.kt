@@ -11,6 +11,7 @@ import dev.ipf.whitenoise.android.notifications.NotificationNavigation
 import dev.ipf.whitenoise.android.notifications.NotificationTapTokens
 import dev.ipf.whitenoise.android.notifications.NotificationTarget
 import dev.ipf.whitenoise.android.notifications.NotificationTargetKind
+import dev.ipf.whitenoise.android.state.WhiteNoiseAppState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
@@ -24,48 +25,16 @@ class ConversationWidgetTapActivity : ComponentActivity() {
                 Intent(this@ConversationWidgetTapActivity, MainActivity::class.java)
                     .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             val state = (application as WhiteNoiseApplication).initializedAppState()
-            val account = intent.getStringExtra("account")
-            val group = intent.getStringExtra("group")
-            val widget = intent.getIntExtra("widget", 0)
-            val choice = ConversationWidgetConfiguration(this@ConversationWidgetTapActivity).read(widget)
+            val request = tapRequest()
             val keyguard = getSystemService(KeyguardManager::class.java)
-            if (state != null &&
-                account != null &&
-                group != null &&
-                choice != null &&
-                (choice.allAccounts || account == choice.account) &&
-                !state.appLockScreenVisible &&
-                !state.requireAppUnlock &&
-                !state.appUnlockEvaluationPending &&
-                keyguard?.isDeviceLocked == false
-            ) {
+            if (state != null && request != null && canOpenWidget(request, state, keyguard)) {
                 val generation = state.runtimeGeneration
-                val valid =
-                    try {
-                        withTimeout(4_000L) {
-                            state.marmotIo {
-                                listAccounts().any { it.label == account } &&
-                                    groupDetails(account, group).group.groupIdHex == group
-                            }
-                        }
-                    } catch (cancelled: CancellationException) {
-                        if (cancelled !is kotlinx.coroutines.TimeoutCancellationException) throw cancelled
-                        false
-                    } catch (_: Exception) {
-                        false
-                    }
-                if (valid &&
-                    !state.appLockScreenVisible &&
-                    !state.requireAppUnlock &&
-                    !state.appUnlockEvaluationPending &&
-                    !keyguard.isDeviceLocked &&
-                    state.runtimeGeneration == generation &&
-                    ConversationWidgetConfiguration(this@ConversationWidgetTapActivity).read(widget) == choice
-                ) {
-                    val key = "widget:$widget:$account:$group"
+                val valid = validateNativeTarget(request, state)
+                if (valid && targetStillCurrent(request, state, keyguard, generation)) {
+                    val key = "widget:${request.widget}:${request.account}:${request.group}"
                     NotificationNavigation.applyToIntent(
                         root,
-                        NotificationTarget(account, group, null, NotificationTargetKind.MESSAGE),
+                        NotificationTarget(request.account, request.group, null, NotificationTargetKind.MESSAGE),
                         key,
                         NotificationTapTokens.create(this@ConversationWidgetTapActivity).tokenFor(key),
                     )
@@ -75,4 +44,54 @@ class ConversationWidgetTapActivity : ComponentActivity() {
             finish()
         }
     }
+
+    private fun tapRequest(): WidgetTapRequest? {
+        val account = intent.getStringExtra("account").orEmpty()
+        val group = intent.getStringExtra("group").orEmpty()
+        val widget = intent.getIntExtra("widget", 0)
+        val choice = ConversationWidgetConfiguration(this).read(widget)
+        if (account.isEmpty() || group.isEmpty() || choice == null) return null
+        return WidgetTapRequest(account, group, widget, choice)
+    }
+
+    private fun canOpenWidget(
+        request: WidgetTapRequest,
+        state: WhiteNoiseAppState,
+        keyguard: KeyguardManager?,
+    ): Boolean = widgetUnlocked(state, keyguard) && (request.choice.allAccounts || request.account == request.choice.account)
+
+    private suspend fun validateNativeTarget(
+        request: WidgetTapRequest,
+        state: WhiteNoiseAppState,
+    ): Boolean =
+        try {
+            withTimeout(WIDGET_READ_TIMEOUT_MS) {
+                state.marmotIo {
+                    listAccounts().any { it.label == request.account } &&
+                        groupDetails(request.account, request.group).group.groupIdHex == request.group
+                }
+            }
+        } catch (cancelled: CancellationException) {
+            if (cancelled !is kotlinx.coroutines.TimeoutCancellationException) throw cancelled
+            false
+        } catch (_: Exception) {
+            false
+        }
+
+    private fun targetStillCurrent(
+        request: WidgetTapRequest,
+        state: WhiteNoiseAppState,
+        keyguard: KeyguardManager?,
+        generation: Long,
+    ): Boolean =
+        state.runtimeGeneration == generation &&
+            canOpenWidget(request, state, keyguard) &&
+            ConversationWidgetConfiguration(this).read(request.widget) == request.choice
+
+    private data class WidgetTapRequest(
+        val account: String,
+        val group: String,
+        val widget: Int,
+        val choice: ConversationWidgetChoice,
+    )
 }

@@ -20,7 +20,6 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
@@ -55,20 +54,25 @@ internal object ConversationWidgets {
             ContextCompat.RECEIVER_NOT_EXPORTED,
         )
         application.applicationScope.launch(Dispatchers.Main) {
-            snapshotFlow {
-                listOf(
-                    state.runtimeGeneration,
-                    state.appLockScreenVisible,
-                    state.requireAppUnlock,
-                    state.appUnlockEvaluationPending,
-                    state.accounts,
-                    state.accountUnreadCounts,
-                    state.chatListItems,
-                    state.activeAccountRef,
-                )
-            }.collectLatest { refresh(application, state) }
+            collectWidgetRefreshes(refreshSignals(state)) { redactFirst -> refresh(application, state, redactFirst) }
         }
     }
+
+    private fun refreshSignals(state: WhiteNoiseAppState) =
+        snapshotFlow {
+            WidgetRefreshSignal(
+                privacy =
+                    listOf(
+                        state.runtimeGeneration,
+                        state.appLockScreenVisible,
+                        state.requireAppUnlock,
+                        state.appUnlockEvaluationPending,
+                        state.accounts.map { it.label }.toSet(),
+                        state.activeAccountRef,
+                    ),
+                content = listOf(state.accountUnreadCounts, state.chatListItems),
+            )
+        }
 
     fun redact(context: Context) {
         refreshEpoch.incrementAndGet()
@@ -81,93 +85,146 @@ internal object ConversationWidgets {
     suspend fun refresh(
         context: Context,
         state: WhiteNoiseAppState?,
+        redactFirst: Boolean = true,
     ) = withContext(Dispatchers.Main) {
         val manager = AppWidgetManager.getInstance(context)
         val ids = manager.getAppWidgetIds(ComponentName(context, ConversationWidgetProvider::class.java))
         val epoch = refreshEpoch.incrementAndGet()
-        ids.forEach { id -> manager.updateAppWidget(id, conversationWidgetViews(context, id, emptyList(), null)) }
-        if (ids.isEmpty()) return@withContext
-        val store = ConversationWidgetConfiguration(context)
+        if (redactFirst) redactWidgets(context, manager, ids)
         val keyguard = context.getSystemService(KeyguardManager::class.java)
         val generation = state?.runtimeGeneration
-        val accounts =
-            if (state != null &&
-                !state.requireAppUnlock &&
-                !state.appUnlockEvaluationPending &&
-                !state.appLockScreenVisible &&
-                keyguard?.isDeviceLocked == false
-            ) {
-                try {
-                    withTimeout(4_000L) { state.marmotIo { listAccounts().map { it.label }.toSet() } }
-                } catch (
-                    _: TimeoutCancellationException,
-                ) {
-                    null
-                } catch (cancelled: CancellationException) {
-                    throw cancelled
-                } catch (_: Exception) {
-                    null
-                }
-            } else {
+        val accounts = availableAccounts(state, keyguard)
+        if (accounts == null) redactWidgets(context, manager, ids)
+        val refresh =
+            WidgetRefresh(
+                manager,
+                ConversationWidgetConfiguration(context),
+                keyguard,
+                state,
+                accounts,
+                epoch,
+                generation,
+            )
+        ids.forEach { id -> refreshWidget(context, id, refresh) }
+    }
+
+    private fun redactWidgets(
+        context: Context,
+        manager: AppWidgetManager,
+        ids: IntArray,
+    ) {
+        ids.forEach { id -> manager.updateAppWidget(id, conversationWidgetViews(context, id, emptyList(), null)) }
+    }
+
+    private suspend fun availableAccounts(
+        state: WhiteNoiseAppState?,
+        keyguard: KeyguardManager?,
+    ): Set<String>? =
+        if (state != null && widgetUnlocked(state, keyguard)) {
+            try {
+                withTimeout(WIDGET_READ_TIMEOUT_MS) { state.marmotIo { listAccounts().map { it.label }.toSet() } }
+            } catch (_: TimeoutCancellationException) {
+                null
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
                 null
             }
-        for (id in ids) {
-            val choice = store.read(id) ?: continue
-            if (state == null ||
-                state.requireAppUnlock ||
-                state.appUnlockEvaluationPending ||
-                state.appLockScreenVisible ||
-                keyguard?.isDeviceLocked != false
-            ) {
-                continue
-            }
-            if (accounts == null) continue
-            if (choice.account !in accounts) {
-                store.remove(id)
-                continue
-            }
-            val result =
-                try {
-                    withTimeout(4_000L) { loadRows(state, choice, accounts) }
-                } catch (
-                    _: TimeoutCancellationException,
-                ) {
-                    continue
-                } catch (cancelled: CancellationException) {
-                    throw cancelled
-                } catch (_: Exception) {
-                    continue
-                }
-            currentCoroutineContext().ensureActive()
-            if (refreshEpoch.get() != epoch ||
-                state.runtimeGeneration != generation ||
-                state.appLockScreenVisible ||
-                state.requireAppUnlock ||
-                state.appUnlockEvaluationPending ||
-                keyguard.isDeviceLocked ||
-                state.accounts.map { it.label }.toSet() != accounts ||
-                store.read(id) != choice
-            ) {
-                continue
-            }
-            val height = manager.getAppWidgetOptions(id).getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 160)
-            val rows = selectConversationWidgetRows(choice, accounts, true, result, height / 52)
-            manager.updateAppWidget(id, conversationWidgetViews(context, id, rows, choice))
+        } else {
+            null
+        }
+
+    private suspend fun refreshWidget(
+        context: Context,
+        id: Int,
+        refresh: WidgetRefresh,
+    ) {
+        val choice = refresh.store.read(id)
+        if (choice == null || !canRefresh(id, choice, refresh)) {
+            redactWidgets(context, refresh.manager, intArrayOf(id))
+            return
+        }
+        val state = checkNotNull(refresh.state)
+        val accounts = checkNotNull(refresh.accounts)
+        val result = readWidgetRows(state, choice, accounts)
+        currentCoroutineContext().ensureActive()
+        if (result == null && refreshEpoch.get() == refresh.epoch) {
+            redactWidgets(context, refresh.manager, intArrayOf(id))
+        }
+        if (result != null && refreshCurrent(id, choice, refresh)) {
+            val height =
+                refresh.manager.getAppWidgetOptions(id).getInt(
+                    AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT,
+                    DEFAULT_WIDGET_HEIGHT_DP,
+                )
+            val rows = selectConversationWidgetRows(choice, accounts, true, result, height / WIDGET_ROW_HEIGHT_DP)
+            refresh.manager.updateAppWidget(id, conversationWidgetViews(context, id, rows, choice))
         }
     }
+
+    private fun canRefresh(
+        id: Int,
+        choice: ConversationWidgetChoice,
+        refresh: WidgetRefresh,
+    ): Boolean {
+        val available = refresh.accounts?.contains(choice.account) == true
+        val unlocked = widgetUnlocked(refresh.state, refresh.keyguard)
+        if (unlocked && !available && refresh.accounts != null) refresh.store.remove(id)
+        return available && unlocked
+    }
+
+    private fun refreshCurrent(
+        id: Int,
+        choice: ConversationWidgetChoice,
+        refresh: WidgetRefresh,
+    ): Boolean {
+        val sameRuntime = refreshEpoch.get() == refresh.epoch && refresh.state?.runtimeGeneration == refresh.generation
+        val sameAccounts =
+            refresh.state
+                ?.accounts
+                ?.map { it.label }
+                ?.toSet() == refresh.accounts
+        val sameChoice = refresh.store.read(id) == choice
+        return sameRuntime && sameAccounts && sameChoice && widgetUnlocked(refresh.state, refresh.keyguard)
+    }
+
+    private suspend fun readWidgetRows(
+        state: WhiteNoiseAppState,
+        choice: ConversationWidgetChoice,
+        accounts: Set<String>,
+    ): List<ConversationWidgetRow>? =
+        try {
+            withTimeout(WIDGET_READ_TIMEOUT_MS) { loadRows(state, choice, accounts) }
+        } catch (_: TimeoutCancellationException) {
+            null
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            null
+        }
+
+    private data class WidgetRefresh(
+        val manager: AppWidgetManager,
+        val store: ConversationWidgetConfiguration,
+        val keyguard: KeyguardManager?,
+        val state: WhiteNoiseAppState?,
+        val accounts: Set<String>?,
+        val epoch: Long,
+        val generation: Long?,
+    )
 
     private suspend fun loadRows(
         state: WhiteNoiseAppState,
         choice: ConversationWidgetChoice,
         accounts: Set<String>,
     ): List<ConversationWidgetRow> {
-        val selected = if (choice.allAccounts) accounts.take(8) else listOf(choice.account)
+        val selected = if (choice.allAccounts) accounts.take(MAX_WIDGET_ROWS) else listOf(choice.account)
         return selected.flatMap { account ->
             var handle: ChatListWindowSubscription? = null
             try {
                 state.marmotIo {
-                    handle = openChatListWindow(account, ChatListViewFfi.CHATS, 50u)
-                    checkNotNull(handle?.snapshot()).rows.take(50).map { presented ->
+                    handle = openChatListWindow(account, ChatListViewFfi.CHATS, WIDGET_NATIVE_PAGE_SIZE.toUInt())
+                    checkNotNull(handle?.snapshot()).rows.take(WIDGET_NATIVE_PAGE_SIZE).map { presented ->
                         val row = presented.row
                         ConversationWidgetRow(
                             account,
@@ -186,3 +243,17 @@ internal object ConversationWidgets {
         }
     }
 }
+
+internal fun widgetUnlocked(
+    state: WhiteNoiseAppState?,
+    keyguard: KeyguardManager?,
+): Boolean {
+    if (state == null) return false
+    val appUnlocked = !state.appLockScreenVisible && !state.requireAppUnlock && !state.appUnlockEvaluationPending
+    return appUnlocked && keyguard?.isDeviceLocked == false
+}
+
+internal const val WIDGET_READ_TIMEOUT_MS = 4_000L
+private const val DEFAULT_WIDGET_HEIGHT_DP = 160
+private const val WIDGET_ROW_HEIGHT_DP = 52
+private const val WIDGET_NATIVE_PAGE_SIZE = 50

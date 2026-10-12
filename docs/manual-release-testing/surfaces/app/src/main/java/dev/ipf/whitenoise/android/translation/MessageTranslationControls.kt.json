@@ -130,6 +130,14 @@
         "test_ids": [
           "SET-033"
         ]
+      },
+      {
+        "surface": "fun rememberMessageTranslationSource(",
+        "source": "app/src/main/java/dev/ipf/whitenoise/android/translation/MessageTranslationControls.kt",
+        "anchor": "fun rememberMessageTranslationSource(",
+        "test_ids": [
+          "SET-033"
+        ]
       }
     ]
   }

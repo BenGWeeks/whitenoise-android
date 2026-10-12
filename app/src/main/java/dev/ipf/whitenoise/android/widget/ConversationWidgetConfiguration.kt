@@ -23,20 +23,26 @@ internal class ConversationWidgetConfiguration(
     init {
         // This unreleased configuration had no encrypted migration source. Reconfigure safely
         // rather than retain account selectors or revive a legacy preview preference in plaintext.
-        context.getSharedPreferences("conversation_widget_choices", Context.MODE_PRIVATE).edit().clear().apply()
+        context
+            .getSharedPreferences("conversation_widget_choices", Context.MODE_PRIVATE)
+            .edit()
+            .clear()
+            .apply()
     }
 
     fun read(id: Int): ConversationWidgetChoice? =
-        runCatching {
-            val choice = store.readAll()[id.toString()]?.let(::JSONObject) ?: return null
-            val account = choice.getString("account").takeIf { it.isNotBlank() } ?: return null
-            ConversationWidgetChoice(
-                account,
-                choice.optBoolean("all", false),
-                false,
-                choice.optBoolean("unread", false),
-            )
-        }.getOrNull()
+        synchronized(mutationLock) {
+            runCatching {
+                val choice = store.readAll()[id.toString()]?.let(::JSONObject) ?: return null
+                val account = choice.getString("account").takeIf { it.isNotBlank() } ?: return null
+                ConversationWidgetChoice(
+                    account,
+                    choice.optBoolean("all", false),
+                    false,
+                    choice.optBoolean("unread", false),
+                )
+            }.getOrNull()
+        }
 
     fun save(
         id: Int,
@@ -49,14 +55,16 @@ internal class ConversationWidgetConfiguration(
                 .put("all", choice.allAccounts)
                 .put("unread", choice.unreadOnly)
                 .toString()
-        return store.putAllDurably(mapOf(id.toString() to value))
+        return synchronized(mutationLock) { store.putAllDurably(mapOf(id.toString() to value)) }
     }
 
     fun remove(id: Int) {
-        store.write(id.toString(), null)
+        synchronized(mutationLock) { store.write(id.toString(), null) }
     }
 
     companion object {
+        // Each configuration instance wraps its own store; all updates share one encrypted map.
+        private val mutationLock = Any()
         private const val STORE_NAME = "conversation_widget_choices.keystore"
         private const val KEY_ALIAS = "whitenoise_conversation_widget_choices"
         private var keyProvider: SecureStoreKeyProvider = AndroidKeystoreSecretKeyProvider(KEY_ALIAS)
@@ -92,7 +100,9 @@ internal fun selectConversationWidgetRows(
         .filter { !choice.unreadOnly || it.unread }
         .distinctBy { it.account to it.group }
         .sortedByDescending { it.activity }
-        .take(limit.coerceIn(1, 8))
+        .take(limit.coerceIn(1, MAX_WIDGET_ROWS))
         .map { it.copy(preview = null) }
         .toList()
 }
+
+internal const val MAX_WIDGET_ROWS = 8

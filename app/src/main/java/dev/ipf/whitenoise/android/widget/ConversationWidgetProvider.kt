@@ -45,7 +45,7 @@ class ConversationWidgetProvider : AppWidgetProvider() {
         val application = context.applicationContext as WhiteNoiseApplication
         application.applicationScope.launch {
             try {
-                withTimeoutOrNull(8_000L) {
+                withTimeoutOrNull(WIDGET_BROADCAST_TIMEOUT_MS) {
                     ConversationWidgets.refresh(context, application.initializedAppState())
                 }
             } finally {
@@ -93,48 +93,57 @@ internal fun conversationWidgetViews(
         views.addView(R.id.widget_rows, empty)
     }
     rows.forEach { row ->
-        val item = RemoteViews(context.packageName, R.layout.conversation_widget_row)
-        val title = row.title.ifBlank { context.getString(R.string.widget_conversation) }
-        item.setTextViewText(
-            R.id.widget_row_title,
-            if (choice?.allAccounts ==
-                true
-            ) {
-                "${row.account}: $title"
-            } else {
-                title
-            },
-        )
-        item.setTextViewText(
-            R.id.widget_row_subtitle,
-            row.preview ?: context.getString(
-                if (row.unread) R.string.widget_unread else R.string.widget_recent,
-            ),
-        )
-        val intent =
-            Intent(context, ConversationWidgetTapActivity::class.java)
-                .setData(
-                    Uri
-                        .Builder()
-                        .scheme("whitenoise-widget")
-                        .authority("open")
-                        .appendPath("$id")
-                        .appendPath(row.account)
-                        .appendPath(row.group)
-                        .build(),
-                ).putExtra("account", row.account)
-                .putExtra("group", row.group)
-                .putExtra("widget", id)
-        item.setOnClickPendingIntent(
-            R.id.widget_row,
-            PendingIntent.getActivity(
-                context,
-                intent.data.toString().hashCode(),
-                intent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-            ),
-        )
-        views.addView(R.id.widget_rows, item)
+        views.addView(R.id.widget_rows, conversationWidgetRowViews(context, id, row, choice?.allAccounts == true))
     }
     return views
 }
+
+private fun conversationWidgetRowViews(
+    context: Context,
+    id: Int,
+    row: ConversationWidgetRow,
+    allAccounts: Boolean,
+): RemoteViews {
+    val item = RemoteViews(context.packageName, R.layout.conversation_widget_row)
+    val title = row.title.ifBlank { context.getString(R.string.widget_conversation) }
+    item.setTextViewText(
+        R.id.widget_row_title,
+        if (allAccounts) {
+            "${row.account}: $title"
+        } else {
+            title
+        },
+    )
+    item.setTextViewText(
+        R.id.widget_row_subtitle,
+        row.preview ?: context.getString(
+            if (row.unread) R.string.widget_unread else R.string.widget_recent,
+        ),
+    )
+    val intent =
+        Intent(context, ConversationWidgetTapActivity::class.java)
+            .setData(
+                Uri
+                    .Builder()
+                    .scheme("whitenoise-widget")
+                    .authority("open")
+                    .appendPath("$id")
+                    .appendPath(row.account)
+                    .appendPath(row.group)
+                    .build(),
+            ).putExtra("account", row.account)
+            .putExtra("group", row.group)
+            .putExtra("widget", id)
+    item.setOnClickPendingIntent(
+        R.id.widget_row,
+        PendingIntent.getActivity(
+            context,
+            intent.data.toString().hashCode(),
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        ),
+    )
+    return item
+}
+
+private const val WIDGET_BROADCAST_TIMEOUT_MS = 8_000L

@@ -7,6 +7,7 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -54,5 +55,16 @@ class OfflineTranslatorBinderCallTest {
                 runCatching { runTranslatorBinderCall<Unit> { throw RemoteException() } }
                     .exceptionOrNull() as TranslationException
             assertEquals(TranslationFailure.SERVICE_DIED, failure.failure)
+        }
+
+    @Test
+    fun unexpectedOperationFailureReachesTheCallerWithoutAStalledContinuation() =
+        runBlocking {
+            val failure = IllegalStateException("Synthetic adapter failure")
+            val observed =
+                withTimeout(2_000L) {
+                    runCatching { runTranslatorBinderCall<Unit> { throw failure } }.exceptionOrNull()
+                }
+            assertSame(failure, observed)
         }
 }

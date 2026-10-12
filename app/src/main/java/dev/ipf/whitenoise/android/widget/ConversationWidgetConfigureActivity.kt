@@ -1,3 +1,5 @@
+@file:Suppress("FunctionNaming") // Unit-returning Compose controls use the established PascalCase convention.
+
 package dev.ipf.whitenoise.android.widget
 
 import android.app.KeyguardManager
@@ -56,12 +58,7 @@ class ConversationWidgetConfigureActivity : ComponentActivity() {
         val state = application.initializedAppState()
         val keyguard = getSystemService(KeyguardManager::class.java)
 
-        fun unlocked(): Boolean =
-            state != null &&
-                !state.appLockScreenVisible &&
-                !state.requireAppUnlock &&
-                !state.appUnlockEvaluationPending &&
-                keyguard?.isDeviceLocked == false
+        fun unlocked(): Boolean = widgetUnlocked(state, keyguard)
         setContent {
             WhiteNoiseTheme {
                 ConversationWidgetConfigurationContent(
@@ -73,7 +70,7 @@ class ConversationWidgetConfigureActivity : ComponentActivity() {
                             val valid =
                                 if (unlocked()) {
                                     runCatching {
-                                        withTimeout(4_000L) {
+                                        withTimeout(WIDGET_READ_TIMEOUT_MS) {
                                             state?.marmotIo { listAccounts().any { it.label == choice.account } } ==
                                                 true
                                         }

@@ -19,7 +19,6 @@ import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
-import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 /** One bound service per request. Cancellation invalidates its private callback and always unbinds. */
@@ -46,7 +45,7 @@ internal class OfflineTranslatorClient(
                     translationResult.completeExceptionally(TranslationException(TranslationFailure.SERVICE_DIED))
                 }
             try {
-                withTimeoutOrNull(30_000L) {
+                withTimeoutOrNull(TRANSLATOR_REQUEST_TIMEOUT_MS) {
                     if (withContext(Dispatchers.IO) { discoverOfflineTranslator(context) } != service) {
                         throw TranslationException(TranslationFailure.UNVERIFIED_ENGINE)
                     }
@@ -99,12 +98,12 @@ internal suspend fun <T> runTranslatorBinderCall(operation: () -> T): T =
         try {
             val future =
                 translatorBinderExecutor.submit {
-                    try {
-                        continuation.resume(operation())
-                    } catch (_: RemoteException) {
+                    // Relay the executor's exact outcome; only Binder death changes its public failure type.
+                    val result = runCatching(operation)
+                    if (result.exceptionOrNull() is RemoteException) {
                         continuation.resumeWithException(TranslationException(TranslationFailure.SERVICE_DIED))
-                    } catch (error: Exception) {
-                        continuation.resumeWithException(error)
+                    } else {
+                        continuation.resumeWith(result)
                     }
                 }
             continuation.invokeOnCancellation { future.cancel(true) }
@@ -112,6 +111,8 @@ internal suspend fun <T> runTranslatorBinderCall(operation: () -> T): T =
             continuation.resumeWithException(TranslationException(TranslationFailure.CONNECTION))
         }
     }
+
+private const val TRANSLATOR_REQUEST_TIMEOUT_MS = 30_000L
 
 private fun translationServiceConnection(
     connected: CompletableDeferred<IBinder>,

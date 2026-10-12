@@ -1,3 +1,5 @@
+@file:Suppress("FunctionNaming") // Unit-returning Compose controls use the established PascalCase convention.
+
 package dev.ipf.whitenoise.android.intelligence
 
 import androidx.compose.foundation.layout.Arrangement
@@ -77,14 +79,7 @@ internal fun ComposerTextAssistanceDialog(
     providerFactory: ((Boolean) -> TextIntelligenceProvider)? = null,
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val lifecycle = LocalLifecycleOwner.current.lifecycle
-    val request =
-        remember(token) {
-            TextIntelligenceRequest(scope) {
-                ownerCurrent() && lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
-            }
-        }
+    val request = rememberAssistanceRequest(token, ownerCurrent)
     var useAicore by remember(token) { mutableStateOf(false) }
     val current = ownerCurrent()
     if (!current) {
@@ -92,14 +87,6 @@ internal fun ComposerTextAssistanceDialog(
         return
     }
     LaunchedEffect(current, useAicore) { request.cancel() }
-    DisposableEffect(request, lifecycle) {
-        val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_PAUSE) request.cancel() }
-        lifecycle.addObserver(observer)
-        onDispose {
-            lifecycle.removeObserver(observer)
-            request.cancel()
-        }
-    }
     val selected = !token.value.selection.collapsed
     val start = if (selected) token.value.selection.min else 0
     val end = if (selected) token.value.selection.max else token.value.text.length
@@ -108,60 +95,18 @@ internal fun ComposerTextAssistanceDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.intelligence_title)) },
         text = {
-            Column(
-                Modifier
-                    .verticalScroll(rememberScrollState())
-                    .semantics { liveRegion = LiveRegionMode.Polite },
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Text(
-                    stringResource(
-                        if (selected) R.string.intelligence_selection else R.string.intelligence_whole_draft,
-                    ),
-                )
-                Text(stringResource(R.string.intelligence_local_only))
-                Text(input)
-                Row {
-                    RadioButton(!useAicore, onClick = { useAicore = false })
-                    TextButton(onClick = { useAicore = false }) { Text(stringResource(R.string.intelligence_litert)) }
-                }
-                Row {
-                    RadioButton(useAicore, onClick = null, enabled = false)
-                    TextButton(onClick = {}, enabled = false) { Text(stringResource(R.string.intelligence_aicore)) }
-                }
-                Text(stringResource(R.string.intelligence_aicore_help))
-                TextIntelligenceOperation.entries.forEach { operation ->
-                    val label =
-                        when (operation) {
-                            TextIntelligenceOperation.PROOFREAD -> R.string.intelligence_proofread
-                            TextIntelligenceOperation.REWRITE -> R.string.intelligence_rewrite
-                            TextIntelligenceOperation.SUMMARIZE -> R.string.intelligence_summarize
+            assistanceDialogContent(
+                AssistanceContentState(request, input, selected, useAicore),
+                onEngineSelected = { useAicore = it },
+                providerFactory = { aicore ->
+                    providerFactory?.invoke(aicore)
+                        ?: if (aicore) {
+                            AicoreTextIntelligenceProvider()
+                        } else {
+                            LiteRtTextIntelligenceProvider(TextIntelligenceModelStore(context.applicationContext))
                         }
-                    TextButton(
-                        enabled =
-                            current &&
-                                !request.running &&
-                                (!useAicore || operation != TextIntelligenceOperation.SUMMARIZE),
-                        onClick = {
-                            val provider =
-                                providerFactory?.invoke(useAicore)
-                                    ?: if (useAicore) {
-                                        AicoreTextIntelligenceProvider()
-                                    } else {
-                                        LiteRtTextIntelligenceProvider(
-                                            TextIntelligenceModelStore(context.applicationContext),
-                                        )
-                                    }
-                            request.start(provider, operation, input)
-                        },
-                    ) { Text(stringResource(label)) }
-                }
-                if (!current) Text(stringResource(R.string.intelligence_draft_changed))
-                if (request.running) Text(stringResource(R.string.intelligence_running))
-                request.failure?.let { Text(stringResource(intelligenceFailureResource(it))) }
-                request.result?.let { Text(it) }
-                if (request.running) TextButton(onClick = request::cancel) { Text(stringResource(R.string.cancel)) }
-            }
+                },
+            )
         },
         confirmButton = {
             TextButton(enabled = current && request.result != null && !request.running, onClick = {
@@ -173,6 +118,89 @@ internal fun ComposerTextAssistanceDialog(
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.intelligence_discard)) } },
     )
+}
+
+@Composable
+private fun rememberAssistanceRequest(
+    token: ComposerAssistanceToken,
+    ownerCurrent: () -> Boolean,
+): TextIntelligenceRequest {
+    val scope = rememberCoroutineScope()
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val request =
+        remember(token) {
+            TextIntelligenceRequest(scope) {
+                ownerCurrent() && lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+            }
+        }
+    DisposableEffect(request, lifecycle) {
+        val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_PAUSE) request.cancel() }
+        lifecycle.addObserver(observer)
+        onDispose {
+            lifecycle.removeObserver(observer)
+            request.cancel()
+        }
+    }
+    return request
+}
+
+private data class AssistanceContentState(
+    val request: TextIntelligenceRequest,
+    val input: String,
+    val selected: Boolean,
+    val useAicore: Boolean,
+)
+
+@Composable
+private fun assistanceDialogContent(
+    state: AssistanceContentState,
+    onEngineSelected: (Boolean) -> Unit,
+    providerFactory: (Boolean) -> TextIntelligenceProvider,
+) {
+    Column(
+        Modifier
+            .verticalScroll(rememberScrollState())
+            .semantics { liveRegion = LiveRegionMode.Polite },
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            stringResource(
+                if (state.selected) R.string.intelligence_selection else R.string.intelligence_whole_draft,
+            ),
+        )
+        Text(stringResource(R.string.intelligence_local_only))
+        Text(state.input)
+        Row {
+            RadioButton(!state.useAicore, onClick = { onEngineSelected(false) })
+            TextButton(onClick = { onEngineSelected(false) }) { Text(stringResource(R.string.intelligence_litert)) }
+        }
+        Row {
+            RadioButton(state.useAicore, onClick = null, enabled = false)
+            TextButton(onClick = {}, enabled = false) { Text(stringResource(R.string.intelligence_aicore)) }
+        }
+        Text(stringResource(R.string.intelligence_aicore_help))
+        TextIntelligenceOperation.entries.forEach { operation ->
+            val label =
+                when (operation) {
+                    TextIntelligenceOperation.PROOFREAD -> R.string.intelligence_proofread
+                    TextIntelligenceOperation.REWRITE -> R.string.intelligence_rewrite
+                    TextIntelligenceOperation.SUMMARIZE -> R.string.intelligence_summarize
+                }
+            TextButton(
+                enabled =
+                    !state.request.running &&
+                        (!state.useAicore || operation != TextIntelligenceOperation.SUMMARIZE),
+                onClick = {
+                    val provider = providerFactory(state.useAicore)
+                    state.request.start(provider, operation, state.input)
+                },
+            ) { Text(stringResource(label)) }
+        }
+        if (state.request.running) Text(stringResource(R.string.intelligence_running))
+        state.request.failure?.let { Text(stringResource(intelligenceFailureResource(it))) }
+        state.request.result?.let { Text(it) }
+        if (state.request.running) TextButton(onClick = state.request::cancel) { Text(stringResource(R.string.cancel)) }
+    }
 }
 
 internal fun intelligenceFailureResource(failure: TextIntelligenceFailure): Int =

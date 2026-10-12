@@ -51,60 +51,76 @@ internal class ConversationTranslationSession(
         from: String = "",
         automatic: Boolean = false,
     ) {
-        if (!ownerCurrent() ||
-            source in pending ||
-            source in renditions ||
-            pending.size >= 16 ||
-            (automatic && failure != null)
-        ) {
-            return
-        }
+        if (!canRequest(source, automatic)) return
         val requestGeneration = epoch
-        val job =
-            scope.launch(start = CoroutineStart.LAZY) {
-                try {
-                    slots.withPermit {
-                        if (requestGeneration != epoch || !ownerCurrent()) return@withPermit
-                        val translated = translateWithPrivacyGate(engine(), source.text, from, source.target)
-                        if (requestGeneration == epoch &&
-                            ownerCurrent() &&
-                            pending[source] === currentCoroutineContext().job
-                        ) {
-                            if (renditions.size >= 64) {
-                                renditionOrder.firstOrNull()?.let { oldest ->
-                                    renditionOrder.remove(oldest)
-                                    renditions.remove(oldest)
-                                }
-                            }
-                            renditions[source] = TranslationRendition(translated)
-                            renditionOrder.add(source)
-                        }
-                    }
-                } catch (cancelled: CancellationException) {
-                    throw cancelled
-                } catch (error: TranslationException) {
-                    if (requestGeneration == epoch &&
-                        ownerCurrent() &&
-                        pending[source] === currentCoroutineContext().job
-                    ) {
-                        failure = error.failure
-                    }
-                } catch (_: Exception) {
-                    if (requestGeneration == epoch &&
-                        ownerCurrent() &&
-                        pending[source] === currentCoroutineContext().job
-                    ) {
-                        failure = TranslationFailure.CONNECTION
-                    }
-                } finally {
-                    if (pending[source] === currentCoroutineContext().job) {
-                        pending.remove(source)
-                        capacityRevision += 1L
-                    }
-                }
-            }
+        val job = scope.launch(start = CoroutineStart.LAZY) { performRequest(source, from, requestGeneration) }
         pending[source] = job
         job.start()
+    }
+
+    private fun canRequest(
+        source: TranslationSource,
+        automatic: Boolean,
+    ): Boolean {
+        val occupied = source in pending || source in renditions || pending.size >= MAX_PENDING_REQUESTS
+        val paused = automatic && failure != null
+        return ownerCurrent() && !occupied && !paused
+    }
+
+    private fun ownerAt(generation: Long): Boolean = generation == epoch && ownerCurrent()
+
+    private suspend fun currentRequest(
+        source: TranslationSource,
+        generation: Long,
+    ): Boolean = ownerAt(generation) && pending[source] === currentCoroutineContext().job
+
+    private suspend fun recordFailure(
+        source: TranslationSource,
+        generation: Long,
+        reason: TranslationFailure,
+    ) {
+        if (currentRequest(source, generation)) failure = reason
+    }
+
+    private suspend fun publishRendition(
+        source: TranslationSource,
+        generation: Long,
+        text: String,
+    ) {
+        if (!currentRequest(source, generation)) return
+        if (renditions.size >= MAX_RENDITIONS) {
+            renditionOrder.firstOrNull()?.let { oldest ->
+                renditionOrder.remove(oldest)
+                renditions.remove(oldest)
+            }
+        }
+        renditions[source] = TranslationRendition(text)
+        renditionOrder.add(source)
+    }
+
+    private suspend fun performRequest(
+        source: TranslationSource,
+        from: String,
+        requestGeneration: Long,
+    ) {
+        try {
+            slots.withPermit {
+                if (!ownerAt(requestGeneration)) return@withPermit
+                val translated = translateWithPrivacyGate(engine(), source.text, from, source.target)
+                publishRendition(source, requestGeneration, translated)
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: TranslationException) {
+            recordFailure(source, requestGeneration, error.failure)
+        } catch (_: Exception) {
+            recordFailure(source, requestGeneration, TranslationFailure.CONNECTION)
+        } finally {
+            if (pending[source] === currentCoroutineContext().job) {
+                pending.remove(source)
+                capacityRevision += 1L
+            }
+        }
     }
 
     fun isCurrent(): Boolean = ownerCurrent()
@@ -133,5 +149,10 @@ internal class ConversationTranslationSession(
         renditions.clear()
         renditionOrder.clear()
         failure = null
+    }
+
+    private companion object {
+        const val MAX_PENDING_REQUESTS = 16
+        const val MAX_RENDITIONS = 64
     }
 }

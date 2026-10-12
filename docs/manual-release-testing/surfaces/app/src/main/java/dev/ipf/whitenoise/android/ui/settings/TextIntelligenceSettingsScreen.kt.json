@@ -90,6 +90,14 @@
         "test_ids": [
           "SET-034"
         ]
+      },
+      {
+        "surface": "fun textModelSettingsContent(",
+        "source": "app/src/main/java/dev/ipf/whitenoise/android/ui/settings/TextIntelligenceSettingsScreen.kt",
+        "anchor": "fun textModelSettingsContent(",
+        "test_ids": [
+          "SET-034"
+        ]
       }
     ]
   }

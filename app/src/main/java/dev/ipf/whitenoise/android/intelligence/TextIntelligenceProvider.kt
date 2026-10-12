@@ -45,21 +45,30 @@ internal suspend fun runTextIntelligence(
     acknowledgedIdentity: String? = null,
 ): String {
     val capability = provider.capability(operation)
-    if (capability.execution == TextIntelligenceExecution.NETWORK &&
-        (localOnly || acknowledgedIdentity != capability.identity)
-    ) {
-        throw TextIntelligenceException(TextIntelligenceFailure.CONSENT_REQUIRED)
-    }
-    if (operation !in capability.operations || capability.availability == TextIntelligenceAvailability.UNAVAILABLE) {
-        throw TextIntelligenceException(TextIntelligenceFailure.UNAVAILABLE)
-    }
-    if (capability.availability == TextIntelligenceAvailability.MODEL_REQUIRED) {
-        throw TextIntelligenceException(TextIntelligenceFailure.MODEL_REQUIRED)
-    }
-    if (text.isBlank() || text.length > capability.inputLimit) {
-        throw TextIntelligenceException(TextIntelligenceFailure.INVALID_INPUT)
+    textIntelligenceInputFailure(capability, operation, text, localOnly, acknowledgedIdentity)?.let {
+        throw TextIntelligenceException(it)
     }
     return provider.transform(operation, text).also {
-        if (it.isBlank() || it.length > 8_192) throw TextIntelligenceException(TextIntelligenceFailure.ENGINE)
+        if (it.isBlank() || it.length > MAX_INTELLIGENCE_OUTPUT) throw TextIntelligenceException(TextIntelligenceFailure.ENGINE)
     }
 }
+
+private fun textIntelligenceInputFailure(
+    capability: TextIntelligenceCapability,
+    operation: TextIntelligenceOperation,
+    text: String,
+    localOnly: Boolean,
+    acknowledgedIdentity: String?,
+): TextIntelligenceFailure? =
+    when {
+        capability.execution == TextIntelligenceExecution.NETWORK &&
+            (localOnly || acknowledgedIdentity != capability.identity) -> TextIntelligenceFailure.CONSENT_REQUIRED
+        operation !in capability.operations ||
+            capability.availability == TextIntelligenceAvailability.UNAVAILABLE -> TextIntelligenceFailure.UNAVAILABLE
+        capability.availability == TextIntelligenceAvailability.MODEL_REQUIRED -> TextIntelligenceFailure.MODEL_REQUIRED
+        text.isBlank() || text.length > capability.inputLimit -> TextIntelligenceFailure.INVALID_INPUT
+        else -> null
+    }
+
+internal const val MAX_INTELLIGENCE_OUTPUT = 8_192
+internal const val INTELLIGENCE_REQUEST_TIMEOUT_MS = 60_000L

@@ -1590,14 +1590,11 @@ internal fun ComposerBar(
                                 .align(trailingActionAlignment)
                                 .expandedComposerActionRow(),
                     ) {
-                        if (appState != null &&
-                            draftAccountRef != null &&
-                            draftGroupIdHex != null &&
-                            textFieldValue.text.isNotBlank() &&
-                            voiceReview == null &&
-                            !attachmentSendInFlight
-                        ) {
-                            val assistanceRuntime = appState.runtimeGeneration
+                        val assistanceState = appState?.takeIf { draftAccountRef != null && draftGroupIdHex != null }
+                        val assistanceAvailable =
+                            textFieldValue.text.isNotBlank() && voiceReview == null && !attachmentSendInFlight
+                        if (assistanceState != null && assistanceAvailable) {
+                            val assistanceRuntime = assistanceState.runtimeGeneration
                             dev.ipf.whitenoise.android.intelligence.ComposerTextAssistanceAction(
                                 textState = textState,
                                 ownerKey =
@@ -1610,8 +1607,8 @@ internal fun ComposerBar(
                                         assistanceRuntime,
                                     ),
                                 ownerCurrent = {
-                                    appState.activeAccountRef == draftAccountRef &&
-                                        appState.runtimeGeneration == assistanceRuntime &&
+                                    assistanceState.activeAccountRef == draftAccountRef &&
+                                        assistanceState.runtimeGeneration == assistanceRuntime &&
                                         !appState.appLockScreenVisible
                                 },
                                 onApply = { value ->

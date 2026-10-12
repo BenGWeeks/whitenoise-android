@@ -14,6 +14,9 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import javax.crypto.SecretKey
 import javax.crypto.spec.SecretKeySpec
 
@@ -53,6 +56,33 @@ class ConversationWidgetAndroidTest {
         ConversationWidgetConfiguration(context).save(7, ConversationWidgetChoice("account", previews = true))
         ConversationWidgetProvider().onDeleted(context, intArrayOf(7))
         assertNull(ConversationWidgetConfiguration(context).read(7))
+    }
+
+    @Test fun independentInstancesPreserveConcurrentChoicesAndRemovals() {
+        val executor = Executors.newFixedThreadPool(4)
+        val start = CountDownLatch(1)
+        val original = ConversationWidgetConfiguration(context)
+        (1..12).forEach { original.save(it, ConversationWidgetChoice("original-$it")) }
+        try {
+            val futures =
+                (1..12).map { id ->
+                    executor.submit {
+                        check(start.await(10, TimeUnit.SECONDS))
+                        val store = ConversationWidgetConfiguration(context)
+                        check(store.save(id + 100, ConversationWidgetChoice("new-$id")))
+                        store.remove(id)
+                    }
+                }
+            start.countDown()
+            futures.forEach { it.get(10, TimeUnit.SECONDS) }
+            val fresh = ConversationWidgetConfiguration(context)
+            (1..12).forEach { id ->
+                assertNull(fresh.read(id))
+                assertEquals(ConversationWidgetChoice("new-$id"), fresh.read(id + 100))
+            }
+        } finally {
+            executor.shutdownNow()
+        }
     }
 
     @Test fun unavailableWidgetContainsGenericCopyInsteadOfLastSensitiveRows() {

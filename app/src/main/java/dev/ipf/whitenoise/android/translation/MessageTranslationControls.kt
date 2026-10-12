@@ -1,3 +1,5 @@
+@file:Suppress("FunctionNaming") // Unit-returning Compose controls use the established PascalCase convention.
+
 package dev.ipf.whitenoise.android.translation
 
 import android.content.Context

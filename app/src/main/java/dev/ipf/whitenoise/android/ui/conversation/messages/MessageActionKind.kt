@@ -110,23 +110,25 @@ internal fun estimatedMessageActionMenuHeight(
 
 /** The menu row label for an action, matching the prototype's wording. */
 @Composable
-internal fun messageActionLabel(kind: MessageActionKind): String =
-    when (kind) {
-        MessageActionKind.Reply -> stringResource(R.string.reply)
-        MessageActionKind.Edit -> stringResource(R.string.edit)
-        MessageActionKind.Select -> stringResource(R.string.select)
-        MessageActionKind.SelectText -> stringResource(R.string.select_text)
-        MessageActionKind.CopyText -> stringResource(R.string.copy)
-        MessageActionKind.Speak -> stringResource(R.string.read_aloud)
-        MessageActionKind.SpeakCodeLiterally -> stringResource(R.string.read_code_literally)
-        MessageActionKind.Translate -> stringResource(R.string.translation_title)
-        MessageActionKind.Forward -> stringResource(R.string.forward)
-        MessageActionKind.KeepOnScreen -> stringResource(R.string.floating_keep)
-        MessageActionKind.Share -> stringResource(R.string.shared_media_share)
-        MessageActionKind.Save -> stringResource(R.string.save_attachments)
-        MessageActionKind.Info -> stringResource(R.string.info)
-        MessageActionKind.Report -> stringResource(R.string.report_message)
-    }
+internal fun messageActionLabel(kind: MessageActionKind): String = stringResource(messageActionLabelResources.getValue(kind))
+
+private val messageActionLabelResources =
+    mapOf(
+        MessageActionKind.Reply to R.string.reply,
+        MessageActionKind.Edit to R.string.edit,
+        MessageActionKind.Select to R.string.select,
+        MessageActionKind.SelectText to R.string.select_text,
+        MessageActionKind.CopyText to R.string.copy,
+        MessageActionKind.Speak to R.string.read_aloud,
+        MessageActionKind.SpeakCodeLiterally to R.string.read_code_literally,
+        MessageActionKind.Translate to R.string.translation_title,
+        MessageActionKind.Forward to R.string.forward,
+        MessageActionKind.KeepOnScreen to R.string.floating_keep,
+        MessageActionKind.Share to R.string.shared_media_share,
+        MessageActionKind.Save to R.string.save_attachments,
+        MessageActionKind.Info to R.string.info,
+        MessageActionKind.Report to R.string.report_message,
+    )
 
 /** The drawable the menu row leads with, mirroring the prototype's icon set. */
 @DrawableRes

@@ -32,11 +32,7 @@ internal class TextIntelligenceModelStore(
                 val hash = runCatching { preferences.getString("sha256", null) }.getOrNull() ?: return@withContext null
                 if (!hash.matches(Regex("[a-f0-9]{64}"))) return@withContext null
                 val file = File(directory, "$hash.litertlm")
-                if (!file.isFile ||
-                    Files.isSymbolicLink(file.toPath()) ||
-                    file.canonicalFile.parentFile != directory.canonicalFile ||
-                    digest(file) != hash
-                ) {
+                if (!ownsRegularFile(file) || digest(file) != hash) {
                     return@withContext null
                 }
                 TextIntelligenceModel(file, hash)
@@ -105,12 +101,7 @@ internal class TextIntelligenceModelStore(
             withContext(Dispatchers.IO) {
                 val current = preferences.getString("sha256", null)
                 val file = File(directory, "$expectedSha256.litertlm")
-                if (current != expectedSha256 ||
-                    !file.isFile ||
-                    Files.isSymbolicLink(file.toPath()) ||
-                    file.canonicalFile.parentFile != directory.canonicalFile ||
-                    digest(file) != expectedSha256
-                ) {
+                if (current != expectedSha256 || !ownsRegularFile(file) || digest(file) != expectedSha256) {
                     throw TextIntelligenceException(TextIntelligenceFailure.MODEL_REQUIRED)
                 }
                 block(TextIntelligenceModel(file, expectedSha256))
@@ -130,6 +121,9 @@ internal class TextIntelligenceModelStore(
         }
         return hashHex(hash.digest())
     }
+
+    private fun ownsRegularFile(file: File): Boolean =
+        file.isFile && !Files.isSymbolicLink(file.toPath()) && file.canonicalFile.parentFile == directory.canonicalFile
 
     /** The model mutex guarantees these temporary imports have no live writer. */
     private fun removeAbandonedImports() {

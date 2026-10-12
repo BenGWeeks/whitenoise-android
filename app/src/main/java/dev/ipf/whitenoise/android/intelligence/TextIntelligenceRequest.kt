@@ -36,20 +36,29 @@ internal class TextIntelligenceRequest(
         job =
             scope.launch {
                 try {
-                    val response = withTimeout(60_000L) { runTextIntelligence(provider, operation, input) }
-                    if (generation == epoch && ownerCurrent()) result = response
+                    val response = withTimeout(INTELLIGENCE_REQUEST_TIMEOUT_MS) { runTextIntelligence(provider, operation, input) }
+                    if (isCurrent(epoch)) result = response
                 } catch (_: TimeoutCancellationException) {
-                    if (generation == epoch && ownerCurrent()) failure = TextIntelligenceFailure.TIMEOUT
+                    recordFailure(epoch, TextIntelligenceFailure.TIMEOUT)
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (error: TextIntelligenceException) {
-                    if (generation == epoch && ownerCurrent()) failure = error.failure
+                    recordFailure(epoch, error.failure)
                 } catch (_: Exception) {
-                    if (generation == epoch && ownerCurrent()) failure = TextIntelligenceFailure.ENGINE
+                    recordFailure(epoch, TextIntelligenceFailure.ENGINE)
                 } finally {
                     if (generation == epoch) running = false
                 }
             }
+    }
+
+    private fun isCurrent(epoch: Long): Boolean = generation == epoch && ownerCurrent()
+
+    private fun recordFailure(
+        epoch: Long,
+        reason: TextIntelligenceFailure,
+    ) {
+        if (isCurrent(epoch)) failure = reason
     }
 
     fun cancel() {

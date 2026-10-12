@@ -71,8 +71,7 @@ internal fun rememberConversationTranslation(
         ownedNotice?.let { appState.clearTransientNotice(it) }
         ownedNotice = null
         if (session.failure != null && account != null) {
-            appState.presentConversationTransient(account, group, R.string.translation_recovery_notice)
-            ownedNotice = appState.transientNotice
+            ownedNotice = appState.presentConversationTransient(account, group, R.string.translation_recovery_notice)
         }
     }
     DisposableEffect(session, lifecycle) {
