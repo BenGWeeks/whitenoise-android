@@ -28,6 +28,14 @@ compatibility, without message text or language extras. An absent launcher uses
 the installation link. Opening the app does not grant it translation trust;
 every submission still passes signer, reviewed-version and explicit-service checks.
 
+The reviewed service looks up explicit languages before awaiting its asynchronous
+catalog initialization. If an explicit-source request receives a detection error,
+the client retries once on the same binding after that callback. Both submissions
+revalidate the package identity and share the overall request deadline. Automatic
+detection errors, missing packs, cancellation and other failures are not retried.
+This recovers the observed cold-start detection failure; the API still exposes no
+readiness or returned-language metadata to validate upstream fallback choices.
+
 The service takes source text, source language, target language and a callback.
 Empty source means automatic detection. Its error parcel contains an enum and
 nullable language/message strings. Only enum values become app-owned stable

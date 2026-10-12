@@ -6,10 +6,7 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.os.IBinder
 import android.os.RemoteException
-import dev.davidv.translator.ErrorType
-import dev.davidv.translator.ITranslationCallback
 import dev.davidv.translator.ITranslationService
-import dev.davidv.translator.TranslationError
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -19,6 +16,7 @@ import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.coroutines.resumeWithException
 
 /** One bound service per request. Cancellation invalidates its private callback and always unbinds. */
@@ -36,13 +34,13 @@ internal class OfflineTranslatorClient(
     ): String =
         withContext(Dispatchers.Main) {
             val connectionResult = CompletableDeferred<IBinder>()
-            val translationResult = CompletableDeferred<String>()
-            val connection = translationServiceConnection(connectionResult, translationResult)
+            val translationResult = AtomicReference(CompletableDeferred<String>())
+            val connection = translationServiceConnection(connectionResult) { translationResult.get() }
             var bound = false
             var binder: IBinder? = null
             val death =
                 IBinder.DeathRecipient {
-                    translationResult.completeExceptionally(TranslationException(TranslationFailure.SERVICE_DIED))
+                    translationResult.get().completeExceptionally(TranslationException(TranslationFailure.SERVICE_DIED))
                 }
             try {
                 withTimeoutOrNull(TRANSLATOR_REQUEST_TIMEOUT_MS) {
@@ -60,26 +58,27 @@ internal class OfflineTranslatorClient(
                     binder = connected
                     connected.linkToDeath(death, 0)
                     val descriptor = runTranslatorBinderCall { connected.interfaceDescriptor }
-                    if (descriptor != OFFLINE_TRANSLATOR_ACTION ||
-                        withContext(Dispatchers.IO) { discoverOfflineTranslator(context) } != service
-                    ) {
+                    if (descriptor != OFFLINE_TRANSLATOR_ACTION) {
                         throw TranslationException(TranslationFailure.INCOMPATIBLE_ENGINE)
                     }
-                    runTranslatorBinderCall {
-                        ITranslationService.Stub.asInterface(connected).translate(
-                            text,
-                            source,
-                            target,
-                            translationCallback(translationResult),
-                        )
-                    }
-                    translationResult.await()
+                    translateOnBoundTranslator(
+                        ITranslationService.Stub.asInterface(connected),
+                        text,
+                        source,
+                        target,
+                        prepareSubmission = {
+                            translationResult.getAndSet(it).cancel()
+                            if (withContext(Dispatchers.IO) { discoverOfflineTranslator(context) } != service) {
+                                throw TranslationException(TranslationFailure.UNVERIFIED_ENGINE)
+                            }
+                        },
+                    )
                 } ?: throw TranslationException(TranslationFailure.TIMEOUT)
             } catch (_: RemoteException) {
                 throw TranslationException(TranslationFailure.SERVICE_DIED)
             } finally {
                 connectionResult.cancel()
-                translationResult.cancel()
+                translationResult.get().cancel()
                 binder?.let { runCatching { it.unlinkToDeath(death, 0) } }
                 if (bound) runCatching { context.unbindService(connection) }
             }
@@ -116,7 +115,7 @@ private const val TRANSLATOR_REQUEST_TIMEOUT_MS = 30_000L
 
 private fun translationServiceConnection(
     connected: CompletableDeferred<IBinder>,
-    result: CompletableDeferred<String>,
+    result: () -> CompletableDeferred<String>,
 ): ServiceConnection =
     object : ServiceConnection {
         override fun onServiceConnected(
@@ -128,7 +127,7 @@ private fun translationServiceConnection(
 
         override fun onServiceDisconnected(name: ComponentName) {
             connected.completeExceptionally(TranslationException(TranslationFailure.SERVICE_DIED))
-            result.completeExceptionally(TranslationException(TranslationFailure.SERVICE_DIED))
+            result().completeExceptionally(TranslationException(TranslationFailure.SERVICE_DIED))
         }
 
         override fun onNullBinding(name: ComponentName) {
@@ -137,28 +136,5 @@ private fun translationServiceConnection(
 
         override fun onBindingDied(name: ComponentName) {
             onServiceDisconnected(name)
-        }
-    }
-
-private fun translationCallback(result: CompletableDeferred<String>): ITranslationCallback.Stub =
-    object : ITranslationCallback.Stub() {
-        override fun onTranslationResult(translatedText: String?) {
-            val text = translatedText?.takeIf { it.isNotBlank() && it.length <= MAX_TRANSLATION_TEXT }
-            if (text == null) {
-                result.completeExceptionally(TranslationException(TranslationFailure.ENGINE))
-            } else {
-                result.complete(text)
-            }
-        }
-
-        override fun onTranslationError(error: TranslationError?) {
-            val failure =
-                when (error?.type) {
-                    ErrorType.COULD_NOT_DETECT_LANGUAGE -> TranslationFailure.DETECTION
-                    ErrorType.DETECTED_BUT_UNAVAILABLE -> TranslationFailure.SOURCE_MODEL
-                    else -> TranslationFailure.ENGINE
-                }
-            // Engine message/language payloads are never retained, displayed or logged.
-            result.completeExceptionally(TranslationException(failure))
         }
     }

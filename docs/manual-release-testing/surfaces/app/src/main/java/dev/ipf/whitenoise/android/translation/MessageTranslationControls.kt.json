@@ -146,6 +146,14 @@
         "test_ids": [
           "SET-033"
         ]
+      },
+      {
+        "surface": "Explicit-source cold engine recovery",
+        "source": "app/src/main/java/dev/ipf/whitenoise/android/translation/MessageTranslationControls.kt",
+        "anchor": "session.request(it.copy(target = target), from)",
+        "test_ids": [
+          "SET-033"
+        ]
       }
     ]
   }
