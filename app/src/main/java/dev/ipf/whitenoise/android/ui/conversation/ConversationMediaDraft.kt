@@ -30,6 +30,7 @@ import dev.ipf.whitenoise.android.media.editor.PhotoDraftStager
 import dev.ipf.whitenoise.android.media.editor.PhotoEditRecipe
 import dev.ipf.whitenoise.android.media.editor.PhotoEditorCommitResult
 import dev.ipf.whitenoise.android.media.editor.PhotoEditorCommitter
+import dev.ipf.whitenoise.android.media.editor.PhotoEditorRenderResult
 import dev.ipf.whitenoise.android.media.editor.PhotoEditorRenderer
 import dev.ipf.whitenoise.android.media.editor.PhotoEditorSourceFailure
 import dev.ipf.whitenoise.android.media.editor.editorDigest
@@ -67,6 +68,7 @@ internal data class PhotoEditorMessages(
     val sourceNotEditable: String,
     val sourceUnavailable: String,
     val saveFailed: String,
+    val budgetExceeded: String = saveFailed,
 )
 
 internal data class ActivePhotoEditor(
@@ -319,6 +321,14 @@ internal class ConversationMediaDraftState(
                         )
                     dismissEditor(editor)
                 }
+                is PhotoEditorCommitResult.RenderFailed ->
+                    editor.stateHolder.finishSaving(
+                        if (result.result == PhotoEditorRenderResult.MemoryLimit) {
+                            messages.budgetExceeded
+                        } else {
+                            messages.saveFailed
+                        },
+                    )
                 else -> editor.stateHolder.finishSaving(messages.saveFailed)
             }
         }
@@ -754,6 +764,7 @@ internal fun rememberConversationMediaDraftState(
             sourceNotEditable = stringResource(R.string.photo_editor_not_editable_source),
             sourceUnavailable = stringResource(R.string.photo_editor_source_unavailable),
             saveFailed = stringResource(R.string.photo_editor_save_failed),
+            budgetExceeded = stringResource(R.string.photo_editor_budget_exceeded),
         )
     val state =
         remember(appState, controller, chatId, controller.boundAccountRef, context, scope, messages) {

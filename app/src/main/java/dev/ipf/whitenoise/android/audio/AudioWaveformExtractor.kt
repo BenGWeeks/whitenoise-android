@@ -45,7 +45,6 @@ object AudioWaveformExtractor {
     // internally synchronized, preserving the prior ConcurrentHashMap's
     // thread-safety guarantee.
     private const val CACHE_MAX_ENTRIES = 256
-    private val UNAVAILABLE_WAVEFORM = FloatArray(0)
     private val decodeGate = Semaphore(2)
 
     // android.media.AudioFormat.ENCODING_PCM_* values, redeclared so the pure
@@ -63,13 +62,13 @@ object AudioWaveformExtractor {
         val result =
             withContext(Dispatchers.IO) {
                 val cacheKey = waveformCacheKey(file)
-                cache.get(cacheKey)?.let { return@withContext it.takeIf { cached -> cached.isNotEmpty() } }
+                cache.get(cacheKey)?.let { return@withContext it }
                 try {
                     decodeGate
                         .withPermit {
                             dev.ipf.whitenoise.android.media.sandbox.IsolatedMediaDecoder
                                 .waveform(file)
-                        }.also { cache.put(cacheKey, it ?: UNAVAILABLE_WAVEFORM) }
+                        }.also { waveform -> waveform?.let { cache.put(cacheKey, it) } }
                 } catch (throwable: Throwable) {
                     if (throwable is CancellationException) throw throwable
                     Log.w(TAG, "waveform_decode_failed")

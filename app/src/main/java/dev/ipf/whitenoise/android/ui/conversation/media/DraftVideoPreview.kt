@@ -197,6 +197,7 @@ internal fun rememberDraftVideoPlayer(
             if (!holds) {
                 release()
             } else if (player == null) {
+                val source = localVideoSource(context, uri) ?: return
                 player =
                     ExoPlayer
                         .Builder(context)
@@ -204,7 +205,7 @@ internal fun rememberDraftVideoPlayer(
                         .setHandleAudioBecomingNoisy(true)
                         .build()
                         .apply {
-                            setMediaSource(localVideoSource(context, uri))
+                            setMediaSource(source)
                             seekTo(position)
                             this.volume = volume
                             setPlaybackSpeed(speed)

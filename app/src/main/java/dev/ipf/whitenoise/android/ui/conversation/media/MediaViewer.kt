@@ -1087,15 +1087,15 @@ internal fun ViewerPage(
                 )
             if (decoded != null) {
                 presentation = decoded
-            } else {
+            } else if (!promoteAnimation) {
                 viewerFailed = true
             }
         } catch (cancel: kotlinx.coroutines.CancellationException) {
             throw cancel
         } catch (_: AttachmentTooLargeToPresentException) {
-            viewerTooLarge = true
+            viewerTooLarge = !promoteAnimation
         } catch (_: Throwable) {
-            viewerFailed = true
+            viewerFailed = !promoteAnimation
         }
     }
     DisposableEffect(pageKey, presentation) {

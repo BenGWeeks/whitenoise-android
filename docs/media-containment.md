@@ -15,7 +15,7 @@ Debug instrumentation may pass the exact path of an existing synthetic `media-co
 ## Limits and failure
 
 - Encoded image input: at most 64 MiB. Existing receive/presentation limits may be lower and remain in force.
-- Static source canvas: at most 32768 pixels per edge and 64 Mi pixels before raster allocation.
+- Static source canvas: at most 32768 pixels per edge and 200 million pixels before sampled raster allocation.
 - Output edge: at most 4096 pixels; parent-owned output: at most 64 MiB. Existing avatar, thumbnail, viewer and editor profiles remain tighter.
 - Existing GIF/WebP canvas/frame/work admission precedes every still or animated decode. A refused animation cannot bypass admission through its first frame.
 - File media probes: at most 512 MiB, with validated descriptor offsets and lengths; this is not an attachment transfer quota.
@@ -37,3 +37,22 @@ MDK retains reference validation, authenticated encryption/hash verification, sa
 ## Qualification
 
 Unit fixtures cover pixel limits, malformed bytes, primitive reply validation and explicit fail-closed transport. Hosted instrumentation must prove real UID separation, pixel fidelity, malformed-input recovery and account-reset behavior. Physical testing additionally checks OS process identity, private-data/network denial, hung-worker death, descriptor/RSS stability, normal image/animation compatibility, SVG, poster/waveform output and large seekable video sources. Record exact source and APK bytes; installation alone is not feature coverage. API 30 compatibility needs its own emulator/device evidence. Do not treat unchecked manual cases or a JVM fake as completed device proof.
+
+## Photo compatibility and budget refusals
+
+Inspection and the editor share a 200-million-pixel source limit and a 32768-pixel
+source-edge limit. Decoded output remains capped at 4096 pixels on its longest edge
+and 64 MiB. A tight crop may require a larger full-source decode even when its final
+output is smaller: refuse that operation before IPC and explain the processing
+limit while retaining the previous attachment. Do not clamp the decode and upscale
+it into a misleading high-quality output. Isolated region decoding is future work.
+The editor budgets the shared pixel buffer and returned host bitmap concurrently,
+as well as rendering and encoding peaks.
+
+Unavailable waveform results are not cached: contention, startup or account reset
+may be transient. Successful waveforms retain their bounded cache. SVG rasterization
+checks the final host-encoded PNG against the existing upload size limit as well as
+the worker's encoded output. Restored video sources outside file/content schemes
+are refused before player construction and use the existing filename preview.
+Instrumentation artifacts are labelled with the built checkout SHA: a PR-triggered
+run normally tests its merge revision, while a branch dispatch tests that branch.

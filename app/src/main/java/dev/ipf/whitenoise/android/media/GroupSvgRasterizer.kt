@@ -31,7 +31,11 @@ internal object GroupSvgRasterizer {
                     ?: throw ImageUploadPreparationException.UnsupportedSvg
             try {
                 val output = ByteArrayOutputStream()
-                require(bitmap.compress(Bitmap.CompressFormat.PNG, PNG_COMPRESSION_QUALITY, output))
+                if (!bitmap.compress(Bitmap.CompressFormat.PNG, PNG_COMPRESSION_QUALITY, output) ||
+                    output.size() > REMOTE_PROFILE_IMAGE_MAX_BYTES
+                ) {
+                    throw ImageUploadPreparationException.UnsupportedSvg
+                }
                 output.toByteArray()
             } finally {
                 bitmap.recycle()

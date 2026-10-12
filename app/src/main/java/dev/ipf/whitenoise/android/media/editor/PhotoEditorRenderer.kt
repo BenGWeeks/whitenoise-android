@@ -127,13 +127,17 @@ internal class PhotoEditorRenderer(
                 val source = (inspected as PhotoEditorInspectResult.Success).source
                 val plan = outputPlan(source, recipe, quality) ?: return@withLock PhotoEditorRenderResult.InvalidRecipe
                 val decodeLongEdge = decodeLongEdge(source, plan.geometry)
+                val decodeCapacity =
+                    dev.ipf.whitenoise.android.media.sandbox.MediaDecodePolicy
+                        .outputCapacity(decodeLongEdge)
+                        ?: return@withLock PhotoEditorRenderResult.MemoryLimit
                 val decodedDimensions =
                     MediaPipeline.targetDimensions(
                         srcWidth = source.orientedSize.width,
                         srcHeight = source.orientedSize.height,
                         maxEdgePx = decodeLongEdge,
                     )
-                if (!fitsMemoryBudget(sourceBytes.size, decodedDimensions, plan)) {
+                if (!fitsMemoryBudget(sourceBytes.size, decodedDimensions, decodeCapacity, plan)) {
                     return@withLock PhotoEditorRenderResult.MemoryLimit
                 }
                 currentCoroutineContext().ensureActive()
@@ -439,6 +443,7 @@ internal class PhotoEditorRenderer(
     private fun fitsMemoryBudget(
         sourceByteCount: Int,
         decodedDimensions: Pair<Int, Int>,
+        decodeCapacity: Int,
         plan: PhotoEditorOutputPlan,
     ): Boolean {
         val decodedPixels = decodedDimensions.first.toLong() * decodedDimensions.second.toLong()
@@ -458,7 +463,8 @@ internal class PhotoEditorRenderer(
             if (plan.pipelinePlan.format == MediaPipeline.RenderedImageFormat.Jpeg) 2L else 1L
         val encodePeak =
             sourceBytes + outputPixels * BYTES_PER_PIXEL * outputCopies + estimatedEncoded * 2
-        return max(renderPeak, encodePeak) <= memoryBudgetBytes()
+        val decodePeak = sourceBytes + decodeCapacity + decodedPixels * BYTES_PER_PIXEL
+        return maxOf(renderPeak, encodePeak, decodePeak) <= memoryBudgetBytes()
     }
 
     private fun decodeLongEdge(
@@ -491,7 +497,7 @@ internal class PhotoEditorRenderer(
         const val PREVIEW_MAX_EDGE_PX = 1536
         const val PREVIEW_MAX_PIXELS = 4_000_000L
         const val MAX_SOURCE_EDGE_PX = 32_768
-        const val MAX_SOURCE_PIXELS = 200_000_000L
+        const val MAX_SOURCE_PIXELS = dev.ipf.whitenoise.android.media.sandbox.MediaDecodePolicy.MAX_SOURCE_PIXELS
         const val MAX_SOURCE_ASPECT_RATIO = 100.0
         private const val BYTES_PER_PIXEL = 4L
         private const val MARK_TILE_CORE_PX = 512

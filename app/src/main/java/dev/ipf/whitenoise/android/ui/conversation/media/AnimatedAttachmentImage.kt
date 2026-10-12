@@ -42,13 +42,14 @@ suspend fun decodeMessageAttachmentImage(
     animationAllowed: Boolean = false,
 ): DecodedAttachmentPresentation? =
     withContext(Dispatchers.Default) {
+        val admission =
+            dev.ipf.whitenoise.android.media
+                .admitAnimationSource(bytes)
         val animationDeferred =
-            !animationAllowed &&
-                dev.ipf.whitenoise.android.media
-                    .admitAnimationSource(bytes) is
-                    dev.ipf.whitenoise.android.media.AnimationSourceAdmission.Admitted
+            !animationAllowed && admission is dev.ipf.whitenoise.android.media.AnimationSourceAdmission.Admitted
         decodeAdmittedAttachmentImage<DecodedAttachmentPresentation>(
             bytes = bytes,
+            admission = admission,
             decodeAnimated = {
                 (if (animationAllowed) MediaPipeline.decodeAnimatedDrawable(bytes, animatedMaxEdgePx) else null)?.let {
                     DecodedAttachmentPresentation.Animated(it)

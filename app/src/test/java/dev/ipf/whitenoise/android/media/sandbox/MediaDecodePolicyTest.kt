@@ -21,6 +21,11 @@ class MediaDecodePolicyTest {
     @Test
     fun sourceCeilingsDoNotDependOnEncodedFileLength() {
         assertTrue(MediaDecodePolicy.sourceAllowed(4096, 4096))
+        assertTrue(MediaDecodePolicy.sourceAllowed(12000, 9000))
+        assertTrue(MediaDecodePolicy.sourceAllowed(16320, 12240))
+        assertTrue(MediaDecodePolicy.sourceAllowed(20000, 10000))
+        assertFalse(MediaDecodePolicy.sourceAllowed(20001, 10000))
+        assertNull(MediaDecodePolicy.outputCapacity(4097))
         assertFalse(MediaDecodePolicy.sourceAllowed(32769, 1))
         assertFalse(MediaDecodePolicy.sourceAllowed(32768, 32768))
         assertFalse(MediaDecodePolicy.sourceAllowed(-1, 1))

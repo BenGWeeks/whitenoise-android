@@ -12,9 +12,11 @@ import androidx.media3.exoplayer.source.ProgressiveMediaSource
 internal fun localVideoSource(
     context: Context,
     uri: Uri,
-): MediaSource {
-    require(uri.scheme == "file" || uri.scheme == "content")
+): MediaSource? {
+    if (!isLocalVideoUri(uri)) return null
     return ProgressiveMediaSource
         .Factory(DefaultDataSource.Factory(context))
         .createMediaSource(MediaItem.fromUri(uri))
 }
+
+internal fun isLocalVideoUri(uri: Uri): Boolean = uri.scheme == "file" || uri.scheme == "content"

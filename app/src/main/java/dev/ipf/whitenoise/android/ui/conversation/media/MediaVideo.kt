@@ -1522,7 +1522,7 @@ internal fun VideoViewerPage(
                             }
                         },
                     )
-                    setMediaSource(localVideoSource(context, android.net.Uri.fromFile(file)))
+                    setMediaSource(requireNotNull(localVideoSource(context, android.net.Uri.fromFile(file))))
                 }
         }
     DisposableEffect(exo) {

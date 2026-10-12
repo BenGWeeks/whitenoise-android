@@ -347,12 +347,18 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Retain exact-head instrumentation APKs
+      - name: Record instrumentation checkout revision
+        if: success()
+        run: git rev-parse HEAD > app/build/outputs/apk/source-revision.txt
+
+      - name: Retain built-revision instrumentation APKs
         if: success()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: android-instrumented-apks-${{ github.event.pull_request.head.sha || github.sha }}
-          path: app/build/outputs/apk/**/*.apk
+          name: android-instrumented-apks-${{ github.sha }}
+          path: |
+            app/build/outputs/apk/**/*.apk
+            app/build/outputs/apk/source-revision.txt
           if-no-files-found: error
           retention-days: 7
 

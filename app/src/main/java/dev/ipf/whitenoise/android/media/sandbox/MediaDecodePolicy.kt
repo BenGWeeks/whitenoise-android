@@ -6,7 +6,7 @@ internal object MediaDecodePolicy {
     const val MAX_EDGE = 4096
     const val MAX_OUTPUT_BYTES = 64 * 1024 * 1024
     const val MAX_SOURCE_EDGE = 32768
-    const val MAX_SOURCE_PIXELS = 64L * 1024 * 1024
+    const val MAX_SOURCE_PIXELS = 200_000_000L
     const val DEADLINE_MS = 8000L
     const val WATCHDOG_MS = 6000L
     const val VERSION = 1
