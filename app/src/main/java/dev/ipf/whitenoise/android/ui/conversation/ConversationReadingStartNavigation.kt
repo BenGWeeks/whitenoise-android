@@ -249,7 +249,11 @@ private suspend fun ConversationScrollCoordinator.ConversationScrollCommandScope
             // coordinate so a resize or saved restore cannot replay the overshoot.
             placement = ConversationReadingStartPlacement(index, -requireNotNull(layout.itemOffsetPx))
             reached = true
-        } else if (index == placement.index && layout.readingStartOffset == placement.offsetPx && layout.isAtReadingStart) {
+        } else if (
+            index == placement.index &&
+            layout.readingStartOffset == placement.offsetPx &&
+            layout.isAtReadingStart
+        ) {
             reached = true
         } else if (attempt < MAX_READING_START_LAYOUT_CORRECTIONS) {
             probe.traced(ConversationMentionJumpTrace.CORRECTION) {

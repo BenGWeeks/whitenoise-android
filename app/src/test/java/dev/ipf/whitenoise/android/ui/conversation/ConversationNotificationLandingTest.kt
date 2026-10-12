@@ -134,7 +134,14 @@ class ConversationNotificationLandingTest {
     @Test
     fun aShortNewestNotificationInLargeRtlHasNoTrailingGapSnapshot() {
         val newest = messageId(MESSAGE_COUNT - 1)
-        val harness = Harness(targetHeightDp = 80, notified = newest, viewportHeightDp = 260, rtl = true, fontScale = 2f)
+        val harness =
+            Harness(
+                targetHeightDp = 80,
+                notified = newest,
+                viewportHeightDp = 260,
+                rtl = true,
+                fontScale = 2f,
+            )
         harness.mount()
         harness.awaitAnchored()
         harness.assertNaturalTailLanding(newest)
@@ -523,53 +530,15 @@ class ConversationNotificationLandingTest {
                         coordinator =
                             remember(listState) {
                                 val writer = RecordingWriter(LazyListConversationScrollWriter(listState))
-                                ConversationScrollCoordinator(writer, initialMentionReadingRowHeightPx = initialReadingHeightPx)
+                                ConversationScrollCoordinator(
+                                    writer,
+                                    initialMentionReadingRowHeightPx = initialReadingHeightPx,
+                                )
                             }
                         val gate = remember(listState) { ConversationPostInitialReanchorGate() }
                         owner = rememberConversationViewportRestorationOwner(controller, coordinator, gate)
                         val rendered = controller.timeline.filterNot { MessageProjector.isEdit(it.record) }
-                        val density = LocalDensity.current
-                        val reserve =
-                            remember(coordinator, viewport, density) {
-                                derivedStateOf {
-                                    coordinator.mentionReadingRowHeightPx?.let { rowHeightPx ->
-                                        with(density) {
-                                            conversationMentionReadingReservePx(
-                                                readingHeightPx = viewport.readingHeightPx(),
-                                                basePaddingPx = CONVERSATION_TIMELINE_TAIL_GAP.roundToPx(),
-                                                rowHeightPx = rowHeightPx,
-                                            ).toDp()
-                                        }
-                                    } ?: 0.dp
-                                }
-                            }
-                        val readReserve = remember(reserve) { { reserve.value } }
-                        val contentPadding =
-                            remember(readReserve) {
-                                conversationTimelineContentPadding(0.dp, 0.dp, readReserve)
-                            }
-                        Box(Modifier.fillMaxWidth().height(viewportHeight.intValue.dp)) {
-                            LazyColumn(
-                                state = listState,
-                                modifier =
-                                    Modifier
-                                        .fillMaxSize()
-                                        .background(MaterialTheme.colorScheme.background)
-                                        .measureConversationTimelinePadding(
-                                            viewport,
-                                            CONVERSATION_TIMELINE_TAIL_GAP,
-                                            0.dp,
-                                            rendered,
-                                            readReserve,
-                                        ).testTag(LIST_TAG),
-                                reverseLayout = true,
-                                contentPadding = contentPadding,
-                            ) {
-                                items(rendered.asReversed(), key = { it.presentationId }) { item ->
-                                    Row(item.record.messageIdHex)
-                                }
-                            }
-                        }
+                        Transcript(listState, viewport, rendered)
                         ConversationViewportRestorationEffects(
                             controller = controller,
                             viewport = viewport,
@@ -582,13 +551,66 @@ class ConversationNotificationLandingTest {
             }
         }
 
+        /** Renders the real reversed transcript with the production measured padding contract. */
+        @Composable
+        private fun Transcript(
+            listState: LazyListState,
+            viewport: ConversationTimelineViewport,
+            rendered: List<TimelineMessage>,
+        ) {
+            val density = LocalDensity.current
+            val reserve =
+                remember(coordinator, viewport, density) {
+                    derivedStateOf {
+                        coordinator.mentionReadingRowHeightPx?.let { rowHeightPx ->
+                            with(density) {
+                                conversationMentionReadingReservePx(
+                                    readingHeightPx = viewport.readingHeightPx(),
+                                    basePaddingPx = CONVERSATION_TIMELINE_TAIL_GAP.roundToPx(),
+                                    rowHeightPx = rowHeightPx,
+                                ).toDp()
+                            }
+                        } ?: 0.dp
+                    }
+                }
+            val readReserve = remember(reserve) { { reserve.value } }
+            val contentPadding =
+                remember(readReserve) {
+                    conversationTimelineContentPadding(0.dp, 0.dp, readReserve)
+                }
+            Box(Modifier.fillMaxWidth().height(viewportHeight.intValue.dp)) {
+                LazyColumn(
+                    state = listState,
+                    modifier =
+                        Modifier
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.background)
+                            .measureConversationTimelinePadding(
+                                viewport,
+                                CONVERSATION_TIMELINE_TAIL_GAP,
+                                0.dp,
+                                rendered,
+                                readReserve,
+                            ).testTag(LIST_TAG),
+                    reverseLayout = true,
+                    contentPadding = contentPadding,
+                ) {
+                    items(rendered.asReversed(), key = { it.presentationId }) { item ->
+                        Row(item.record.messageIdHex)
+                    }
+                }
+            }
+        }
+
         /** One row whose height is fixed, or follows the font scale when it is the target with body lines. */
         @Composable
         private fun Row(messageId: String) {
             val isTarget = messageId == notified
             if (isTarget && targetBodyLines != null) {
                 Column(Modifier.fillMaxWidth().testTag(messageId)) {
-                    repeat(targetBodyLines) { Text("Notified line $it", color = MaterialTheme.colorScheme.onBackground) }
+                    repeat(targetBodyLines) {
+                        Text("Notified line $it", color = MaterialTheme.colorScheme.onBackground)
+                    }
                 }
             } else {
                 val rowHeightDp = if (isTarget) targetHeight.intValue else ROW_HEIGHT_DP
@@ -708,7 +730,11 @@ class ConversationNotificationLandingTest {
             val newestBounds = composeRule.onNodeWithTag(messageId(MESSAGE_COUNT - 1)).getUnclippedBoundsInRoot()
             assertTrue(targetBounds.top >= viewportBounds.top)
             assertTrue(targetBounds.bottom <= viewportBounds.bottom)
-            assertEquals(CONVERSATION_TIMELINE_TAIL_GAP.value, viewportBounds.bottom.value - newestBounds.bottom.value, 1f)
+            assertEquals(
+                CONVERSATION_TIMELINE_TAIL_GAP.value,
+                viewportBounds.bottom.value - newestBounds.bottom.value,
+                1f,
+            )
             assertFalse(list.canScrollBackward)
             assertNull(coordinator.mentionReadingRowHeightPx)
             assertEquals(targetId, (coordinator.mode as ConversationScrollMode.ReadingHistory).anchorMessageId)
