@@ -44,11 +44,20 @@ class NostrEventCardActionContrastScreenshotTest {
     private var foreground = Color.Unspecified
     private var plays = 0
 
-    @Test fun darkOutgoingMediaControlsAreVisibleAndUseBubbleForeground() = media(dark = true, amoled = false, suffix = "dark")
+    @Test
+    fun darkOutgoingMediaControlsAreVisibleAndUseBubbleForeground() {
+        media(dark = true, amoled = false, suffix = "dark")
+    }
 
-    @Test fun lightOutgoingMediaControlsAreVisibleAndUseBubbleForeground() = media(dark = false, amoled = false, suffix = "light")
+    @Test
+    fun lightOutgoingMediaControlsAreVisibleAndUseBubbleForeground() {
+        media(dark = false, amoled = false, suffix = "light")
+    }
 
-    @Test fun amoledOutgoingMediaControlsAreVisibleAndUseBubbleForeground() = media(dark = true, amoled = true, suffix = "amoled")
+    @Test
+    fun amoledOutgoingMediaControlsAreVisibleAndUseBubbleForeground() {
+        media(dark = true, amoled = true, suffix = "amoled")
+    }
 
     @Test
     fun expansionOnAWhiteOutgoingBubbleUsesItsForeground() {

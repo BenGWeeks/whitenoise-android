@@ -1,6 +1,7 @@
 package dev.ipf.whitenoise.android.ui.conversation.nostr
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
@@ -55,5 +56,32 @@ class NostrEventCardLayoutTest {
         composeRule.runOnIdle { ceiling.value = 400.dp }
         composeRule.onNodeWithTag("card").assertHeightIsEqualTo(200.dp)
         composeRule.onNodeWithTag(NOSTR_CARD_EXPAND_TAG).assertIsNotDisplayed()
+    }
+
+    @Test
+    fun overflowChangesEvenWhenTheClippedBodyKeepsTheSameHeight() {
+        val bodyHeight = mutableStateOf(220.dp)
+        composeRule.setContent {
+            WhiteNoiseTheme {
+                Column {
+                    Box(Modifier.testTag("card")) {
+                        NostrEventCardLayout(150.dp, onExpand = {}) { Box(Modifier.height(bodyHeight.value)) }
+                    }
+                }
+            }
+        }
+        composeRule.onNodeWithTag("card").assertHeightIsEqualTo(150.dp)
+        val footer =
+            composeRule
+                .onNodeWithTag(NOSTR_CARD_EXPAND_TAG)
+                .fetchSemanticsNode()
+                .boundsInRoot.height
+        val sameVisibleHeight = (150f - footer).dp
+        composeRule.runOnIdle { bodyHeight.value = sameVisibleHeight }
+        composeRule.onNodeWithTag("card").assertHeightIsEqualTo(sameVisibleHeight)
+        composeRule.onNodeWithTag(NOSTR_CARD_EXPAND_TAG).assertIsNotDisplayed()
+        composeRule.runOnIdle { bodyHeight.value = 220.dp }
+        composeRule.onNodeWithTag("card").assertHeightIsEqualTo(150.dp)
+        composeRule.onNodeWithTag(NOSTR_CARD_EXPAND_TAG).assertIsDisplayed()
     }
 }

@@ -16,6 +16,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.layout.HorizontalAlignmentLine
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.platform.LocalConfiguration
@@ -66,17 +67,17 @@ internal fun NostrEventCardLayout(
                     Text(stringResource(R.string.nostr_event_expand))
                 }
             }.single().measure(loose)
-        // This measure-pass object deliberately changes with each subcomposition.
-        // It is not Compose state and never triggers a second UI pass.
-        val measurement = CardMeasurement()
         val body =
             subcompose(CardSlot.Body) {
-                NostrEventCardViewport(ceiling, footer.height, measurement, content)
+                NostrEventCardViewport(ceiling, footer.height, content)
             }.single().measure(loose)
-        val height = body.height + if (measurement.overflow) footer.height else 0
+        // Read from the immutable measured result, including when Compose reuses it.
+        // A fresh side-channel object can otherwise lose overflow on a cached measurement.
+        val overflow = body[NaturalCardHeight] > ceiling
+        val height = body.height + if (overflow) footer.height else 0
         layout(body.width, constraints.constrainHeight(height)) {
             body.placeRelative(0, 0)
-            if (measurement.overflow) footer.placeRelative(0, body.height)
+            if (overflow) footer.placeRelative(0, body.height)
         }
     }
 }
@@ -85,7 +86,6 @@ internal fun NostrEventCardLayout(
 private fun NostrEventCardViewport(
     ceiling: Int,
     footerHeight: Int,
-    measurement: CardMeasurement,
     content: @Composable () -> Unit,
 ) {
     Layout(
@@ -93,15 +93,15 @@ private fun NostrEventCardViewport(
         modifier = Modifier.clipToBounds(),
     ) { children, constraints ->
         val natural = children.single().measure(constraints.copy(minHeight = 0, maxHeight = Constraints.Infinity))
-        measurement.overflow = natural.height > ceiling
-        val height = if (measurement.overflow) (ceiling - footerHeight).coerceAtLeast(0) else natural.height
-        layout(natural.width, height) { natural.placeRelative(0, 0) }
+        val overflow = natural.height > ceiling
+        val height = if (overflow) (ceiling - footerHeight).coerceAtLeast(0) else natural.height
+        layout(natural.width, height, alignmentLines = mapOf(NaturalCardHeight to natural.height)) {
+            natural.placeRelative(0, 0)
+        }
     }
 }
 
-private class CardMeasurement(
-    var overflow: Boolean = false,
-)
+private val NaturalCardHeight = HorizontalAlignmentLine(::maxOf)
 
 private enum class CardSlot { Body, Expand }
 
