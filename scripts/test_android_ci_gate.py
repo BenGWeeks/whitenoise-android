@@ -9,7 +9,9 @@ import subprocess
 import textwrap
 import unittest
 
+from scripts.check_fuzz_pr_triggers import pr_paths
 from scripts.check_runtime_listener_coverage import OWNER, check_coverage
+from scripts.select_instrumented_lanes import matches
 
 
 WORKFLOW = Path(__file__).resolve().parents[1] / '.github/workflows/android-ci.yml'
@@ -424,6 +426,16 @@ class AndroidCiGateTest(unittest.TestCase):
             self.assertIn('    paths:\n', events)
             self.assertIn("      - 'app/build.gradle.kts'\n", events)
             self.assertIn("      - 'gradle/**'\n", events)
+
+    def test_release_path_filters_cover_every_root_script_build_input(self):
+        """A diff touching only a Gradle-declared script input still starts release checks."""
+        scripts = set(re.findall(r'inputs\.file\(rootProject\.file\("(scripts/[^"]+)"\)\)', self.app_build))
+        self.assertIn('scripts/prepare_marmotkit_artifact.py', scripts)
+        for name in ('android-release-runtime.yml', 'android-repro-verify.yml'):
+            triggers = pr_paths(WORKFLOW.with_name(name).read_text())
+            for script in sorted(scripts):
+                with self.subTest(workflow=name, script=script):
+                    self.assertTrue(matches(script, triggers))
 
     def test_any_non_successful_job_blocks(self):
         """Failure, cancellation, and skipped matrix jobs all block the gate."""
