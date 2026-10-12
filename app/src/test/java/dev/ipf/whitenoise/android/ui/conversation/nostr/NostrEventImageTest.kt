@@ -33,6 +33,31 @@ class NostrEventImageTest {
     @get:Rule val composeRule = createComposeRule()
 
     @Test
+    fun explicitLinkedImageRequestsOnceAndDismissesFullscreenInOneAction() {
+        var downloads = 0
+        var dismissals = 0
+        composeRule.setContent {
+            WhiteNoiseTheme {
+                NostrEventImagePane(
+                    url = "https://images.example/explicit-link",
+                    initiallyRequested = true,
+                    onFullscreenDismiss = { dismissals++ },
+                    loadImage = { _, _ ->
+                        downloads++
+                        ImageBitmap(20, 10)
+                    },
+                )
+            }
+        }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithContentDescription(string(R.string.close)).performClick()
+        composeRule.runOnIdle {
+            assertEquals(1, downloads)
+            assertEquals(1, dismissals)
+        }
+    }
+
+    @Test
     fun imageMetadataRejectsUnsafeLocatorsAndUnrelatedMimeTypes() {
         val event =
             event(

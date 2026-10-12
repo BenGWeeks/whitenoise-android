@@ -25,6 +25,7 @@ import androidx.test.core.app.ApplicationProvider
 import dev.ipf.whitenoise.android.R
 import dev.ipf.whitenoise.android.ui.theme.WhiteNoiseTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -37,7 +38,7 @@ class NostrEventPreviewGeometryTest {
     @get:Rule val composeRule = createComposeRule()
 
     @Test
-    fun nostrEventPreviewStateTransitionsKeepMessageBoundsStable() {
+    fun eventCardsWrapTheirContentsAcrossStatesAndTextSizes() {
         val state = mutableStateOf<NostrEventCardState>(NostrEventCardState.Loading)
         val configuration = mutableStateOf(GeometryConfiguration())
         composeRule.setContent {
@@ -74,7 +75,11 @@ class NostrEventPreviewGeometryTest {
             states().forEach { next ->
                 composeRule.runOnIdle { state.value = next }
                 composeRule.waitForIdle()
-                assertEquals("$current / $next", initial, bounds())
+                val actual = bounds()
+                assertEquals("Previous row remains above the card", initial[2], actual[2])
+                assertTrue("Card has content: $current / $next", actual[1].height > 0)
+                assertTrue("No gap before following row", kotlin.math.abs(actual[3].top - actual[1].bottom) < 1f)
+                assertTrue("No gap before composer", kotlin.math.abs(actual[4].top - actual[3].bottom) < 1f)
                 if (next is NostrEventCardState.Loaded && next.card.imageUrls.isNotEmpty()) {
                     val label =
                         ApplicationProvider

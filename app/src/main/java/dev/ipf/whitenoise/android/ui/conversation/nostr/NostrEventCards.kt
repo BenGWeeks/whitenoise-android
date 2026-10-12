@@ -8,7 +8,6 @@ import android.net.Uri
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -21,6 +20,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -37,13 +37,11 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.ipf.marmotkit.MarkdownDocumentFfi
 import dev.ipf.whitenoise.android.R
@@ -65,6 +63,7 @@ internal fun NostrEventCards(
     modifier: Modifier = Modifier,
 ) {
     if (references.isEmpty()) return
+    var videoSelection by remember(resolver) { mutableStateOf<NostrEventCardModel?>(null) }
     var readerSelection by remember(resolver) { mutableStateOf<NostrEventReaderSelection?>(null) }
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -79,6 +78,7 @@ internal fun NostrEventCards(
                     contentColor = contentColor,
                     mentionDisplayName = mentionDisplayName,
                     parseMarkdown = parseMarkdown,
+                    onPlayVideo = { card -> videoSelection = card },
                     onReadEvent = { card, authoredReference ->
                         readerSelection = NostrEventReaderSelection(card, authoredReference)
                     },
@@ -97,6 +97,11 @@ internal fun NostrEventCards(
             onDismiss = { readerSelection = null },
         )
     }
+    videoSelection?.let { card ->
+        card.mediaUrl?.let { url ->
+            NostrVideoPlayerDialog(url, card.mediaMimeType, onDismiss = { videoSelection = null })
+        }
+    }
 }
 
 private data class NostrEventReaderSelection(
@@ -114,6 +119,7 @@ private fun ResolvedNostrEventCard(
     mentionDisplayName: (String) -> String?,
     parseMarkdown: suspend (String) -> MarkdownDocumentFfi,
     onReadEvent: (NostrEventCardModel, String?) -> Unit,
+    onPlayVideo: (NostrEventCardModel) -> Unit,
 ) {
     val context = LocalContext.current
     val clipboard = LocalClipboard.current
@@ -136,6 +142,7 @@ private fun ResolvedNostrEventCard(
             }
         },
         onReadNote = { card -> onReadEvent(card, authoredReference) },
+        onPlayVideo = onPlayVideo,
         onOpen = { card ->
             when {
                 card != null -> onReadEvent(card, authoredReference)
@@ -162,6 +169,7 @@ internal fun NostrEventCard(
     onOpen: (NostrEventCardModel?) -> Unit,
     onReadNote: (NostrEventCardModel) -> Unit = {},
     referenceLabel: String? = null,
+    onPlayVideo: (NostrEventCardModel) -> Unit = {},
 ) {
     val openDescription = stringResource(R.string.nostr_event_open)
     val copyDescription = stringResource(R.string.nostr_event_copy)
@@ -172,10 +180,12 @@ internal fun NostrEventCard(
         border = BorderStroke(1.dp, contentColor.copy(alpha = 0.22f)),
         modifier = Modifier.fillMaxWidth().testTag(NOSTR_EVENT_CARD_BOUNDS_TAG),
     ) {
-        // A reference's kind and image dimensions are unknown until resolution.
-        // Reserve the same bounded reading space for every state and enrichment.
-        Box(Modifier.fillMaxWidth().height(nostrEventPreviewHeight())) {
+        NostrEventCardLayout(
+            maximumHeight = nostrEventPreviewMaximumHeight(),
+            onExpand = { onOpen((state as? NostrEventCardState.Loaded)?.card) },
+        ) {
             EventCardBody(
+                onPlayVideo = onPlayVideo,
                 state = state,
                 authorDisplayName = authorDisplayName,
                 referenceLabel = referenceLabel,
@@ -204,6 +214,7 @@ private fun EventCardBody(
     onCopy: () -> Unit,
     onOpen: (NostrEventCardModel?) -> Unit,
     onReadNote: (NostrEventCardModel) -> Unit,
+    onPlayVideo: (NostrEventCardModel) -> Unit,
 ) {
     when (state) {
         NostrEventCardState.Loading ->
@@ -260,6 +271,7 @@ private fun EventCardBody(
                 onCopy = onCopy,
                 onOpen = { onOpen(state.card) },
                 onReadNote = { onReadNote(state.card) },
+                onPlayVideo = { onPlayVideo(state.card) },
             )
     }
 }
@@ -275,6 +287,7 @@ private fun LoadedEventCard(
     onCopy: () -> Unit,
     onOpen: () -> Unit,
     onReadNote: () -> Unit,
+    onPlayVideo: () -> Unit,
 ) {
     val primaryAction = card.primaryAction()
     Column(Modifier.padding(start = 10.dp, top = 6.dp, end = 4.dp, bottom = 7.dp)) {
@@ -309,21 +322,9 @@ private fun LoadedEventCard(
         card.imageUrls.firstOrNull()?.let { url ->
             NostrEventImagePane(url = url, compact = true)
         }
-    }
-}
-
-/** Fixed typography and image slots; content and resolved kind never determine the envelope. */
-@Composable
-internal fun nostrEventPreviewHeight(): Dp {
-    val typography = MaterialTheme.typography
-    return with(LocalDensity.current) {
-        val authorLine = typography.labelLarge.lineHeight.toDp()
-        val kindLine = typography.labelSmall.lineHeight.toDp()
-        val header = maxOf(48.dp, authorLine + kindLine + 2.dp)
-        val title = typography.titleSmall.lineHeight.toDp() * 2
-        val summary = maxOf(48.dp, typography.bodyMedium.lineHeight.toDp() * 3)
-        val metadataAndReference = typography.labelSmall.lineHeight.toDp() * 3
-        header + title + summary + metadataAndReference + 96.dp + 26.dp + 16.dp * fontScale.coerceAtLeast(1f)
+        if (card.mediaUrl != null) {
+            TextButton(onClick = onPlayVideo) { Text(stringResource(R.string.nostr_event_play_video)) }
+        }
     }
 }
 

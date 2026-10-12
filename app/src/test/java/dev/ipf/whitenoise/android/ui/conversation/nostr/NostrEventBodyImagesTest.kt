@@ -82,6 +82,18 @@ class NostrEventBodyImagesTest {
         assertNull(boundedNostrImageBody("é".repeat(128 * 1024)))
     }
 
+    @Test
+    fun plainNoteMediaLinksKeepTypesAndOneCombinedBudget() {
+        val imageUrl = "https://images.example/photo.GIF?size=2"
+        val videoUrl = "https://media.example/movie.MP4?token=sample"
+        val document = document(MarkdownBlockFfi.Paragraph(listOf(link(imageUrl), link(videoUrl))))
+        val media = nostrEventMediaCandidates(emptyList(), emptyList(), document)
+        assertEquals(listOf(imageUrl), media.imageUrls)
+        assertEquals(listOf(videoUrl), media.videoUrls)
+        assertNull(nostrLinkedMediaKind("https://example.org/article"))
+        assertNull(nostrLinkedMediaKind("https://127.0.0.1/movie.mp4"))
+    }
+
     private fun image(url: String) =
         MarkdownInlineFfi.Image(
             dest = url,

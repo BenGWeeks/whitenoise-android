@@ -17,11 +17,19 @@ internal fun NostrEvent.videoMetadata(): NostrEventVideoMetadata? =
     tags
         .asSequence()
         .filter { it.firstOrNull() == "imeta" }
+        .take(32)
         .map(::imetaProperties)
         .mapNotNull { properties ->
-            val mimeType = properties["m"]?.firstOrNull()?.safeField()?.lowercase(Locale.ROOT)
+            val mimeType =
+                properties["m"]
+                    ?.firstOrNull()
+                    ?.safeField()
+                    ?.substringBefore(';')
+                    ?.trim()
+                    ?.lowercase(Locale.ROOT)
             val url = properties["url"]?.firstOrNull()?.let(::safeNostrMediaUrl)
-            if (url == null || !mimeType.isPlayableVideoMimeType()) {
+            val playable = mimeType.isPlayableVideoMimeType() && (mimeType != null || kind in VIDEO_EVENT_KINDS)
+            if (url == null || !playable) {
                 null
             } else {
                 NostrEventVideoMetadata(
@@ -72,3 +80,5 @@ private val PLAYLIST_VIDEO_MIME_TYPES =
         "application/vnd.apple.mpegurl",
         "application/x-mpegurl",
     )
+
+private val VIDEO_EVENT_KINDS = setOf(21, 22, 34_235, 34_236)

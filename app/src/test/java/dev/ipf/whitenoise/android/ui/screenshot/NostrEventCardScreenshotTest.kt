@@ -428,6 +428,24 @@ class NostrEventCardScreenshotTest {
         )
     }
 
+    @Test
+    fun kindOneNoteShowsExplicitImageAndVideoActions() {
+        render(darkTheme = false) {
+            EventBubble(
+                NostrEventCardState.Loaded(
+                    card(NostrEventCardKind.Note, 1, null, "A regular note containing a photo and a video.")
+                        .copy(
+                            imageUrls = listOf("https://images.example/note.jpg"),
+                            mediaUrl = "https://media.example/note.mp4",
+                            mediaMimeType = "video/mp4",
+                        ),
+                ),
+                mine = false,
+            )
+        }
+        capture("nostr_kind_one_linked_media_light")
+    }
+
     private fun render(
         darkTheme: Boolean,
         amoled: Boolean = false,

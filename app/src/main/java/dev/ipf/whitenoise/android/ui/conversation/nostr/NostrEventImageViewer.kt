@@ -48,14 +48,16 @@ internal fun NostrEventImagePane(
     url: String,
     loadImage: suspend (String, Int) -> ImageBitmap? = AvatarImageLoader::retryBanner,
     compact: Boolean = false,
+    initiallyRequested: Boolean = false,
+    onFullscreenDismiss: (() -> Unit)? = null,
 ) {
-    var attempt by remember(url) { mutableIntStateOf(0) }
+    var attempt by remember(url, initiallyRequested) { mutableIntStateOf(if (initiallyRequested) 1 else 0) }
     var image by remember(url) { mutableStateOf(AvatarImageLoader.peekBanner(url, IMAGE_WIDTH_PX)) }
     var loading by remember(url) { mutableStateOf(false) }
     var failed by remember(url) { mutableStateOf(false) }
     var fullscreen by remember(url) { mutableStateOf(false) }
     LaunchedEffect(url, attempt) {
-        if (attempt == 0) return@LaunchedEffect
+        if (attempt == 0 || (initiallyRequested && attempt == 1 && image != null)) return@LaunchedEffect
         loading = true
         failed = false
         image =
@@ -69,6 +71,9 @@ internal fun NostrEventImagePane(
         failed = image == null
         loading = false
     }
+    LaunchedEffect(url, image, initiallyRequested) {
+        if (initiallyRequested && image != null) fullscreen = true
+    }
     val viewDescription = stringResource(R.string.nostr_event_view_image)
     NostrImageLayout(
         presentation = NostrImagePresentation(image, loading, failed),
@@ -80,7 +85,10 @@ internal fun NostrEventImagePane(
 
     if (fullscreen) {
         image?.let { bitmap ->
-            NostrFullscreenImage(bitmap = bitmap, onDismiss = { fullscreen = false })
+            NostrFullscreenImage(bitmap = bitmap, onDismiss = {
+                fullscreen = false
+                onFullscreenDismiss?.invoke()
+            })
         }
     }
 }

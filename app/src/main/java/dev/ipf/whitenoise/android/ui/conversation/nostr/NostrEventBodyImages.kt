@@ -14,36 +14,66 @@ import java.util.Locale
 internal fun nostrEventImageCandidates(
     metadata: List<String>,
     document: MarkdownDocumentFfi?,
-): List<String> = NostrBodyImageCollector().collect(metadata, document)
+): List<String> = nostrEventMediaCandidates(metadata, emptyList(), document).imageUrls
+
+internal enum class NostrLinkedMediaKind { Image, Video }
+
+internal data class NostrEventMediaCandidates(
+    val imageUrls: List<String>,
+    val videoUrls: List<String>,
+)
+
+internal fun nostrEventMediaCandidates(
+    images: List<String>,
+    videos: List<String>,
+    document: MarkdownDocumentFfi?,
+): NostrEventMediaCandidates = NostrBodyImageCollector().collect(images, videos, document)
+
+/** A display hint for an explicit action, never payload qualification or acquisition. */
+internal fun nostrLinkedMediaKind(raw: String): NostrLinkedMediaKind? {
+    if (raw.length > IMAGE_DESTINATION_MAX_CHARS) return null
+    val safe = safeNostrMediaUrl(raw) ?: return null
+    val extension =
+        runCatching {
+            URI(safe)
+                .path
+                .orEmpty()
+                .substringAfterLast('.')
+                .lowercase(Locale.ROOT)
+        }.getOrNull()
+    return when (extension) {
+        in IMAGE_PATH_HINTS -> NostrLinkedMediaKind.Image
+        in VIDEO_PATH_HINTS -> NostrLinkedMediaKind.Video
+        else -> null
+    }
+}
 
 private class NostrBodyImageCollector {
-    private val urls = LinkedHashSet<String>()
+    private val urls = LinkedHashMap<String, NostrLinkedMediaKind>()
     private var remainingNodes = IMAGE_SCAN_NODE_BUDGET
 
     fun collect(
         metadata: List<String>,
+        videos: List<String>,
         document: MarkdownDocumentFfi?,
-    ): List<String> {
-        metadata.take(MAX_READER_IMAGES * 2).forEach { add(it, explicit = true) }
+    ): NostrEventMediaCandidates {
+        videos.take(MAX_READER_IMAGES).forEach { add(it, kind = NostrLinkedMediaKind.Video) }
+        metadata.take(MAX_READER_IMAGES * 2).forEach { add(it, kind = NostrLinkedMediaKind.Image) }
         document?.let { blocks(it.blocks, 0) }
-        return urls.toList()
+        return NostrEventMediaCandidates(
+            urls.filterValues { it == NostrLinkedMediaKind.Image }.keys.toList(),
+            urls.filterValues { it == NostrLinkedMediaKind.Video }.keys.toList(),
+        )
     }
 
     private fun add(
         raw: String,
-        explicit: Boolean,
+        kind: NostrLinkedMediaKind? = null,
     ) {
         if (urls.size >= MAX_READER_IMAGES || raw.length > IMAGE_DESTINATION_MAX_CHARS) return
         val safe = safeNostrMediaUrl(raw) ?: return
-        val hintedImage =
-            runCatching {
-                URI(safe)
-                    .path
-                    .orEmpty()
-                    .substringAfterLast('.')
-                    .lowercase(Locale.ROOT)
-            }.getOrNull() in IMAGE_PATH_HINTS
-        if (explicit || hintedImage) urls += safe
+        val resolved = kind ?: nostrLinkedMediaKind(safe) ?: return
+        urls.putIfAbsent(safe, resolved)
     }
 
     private fun available(): Boolean = remainingNodes > 0 && urls.size < MAX_READER_IMAGES
@@ -114,12 +144,12 @@ private class NostrBodyImageCollector {
         for (inline in values.take(MARKDOWN_MAX_CONTAINER_SIBLINGS)) {
             if (!visit()) return
             when (inline) {
-                is MarkdownInlineFfi.Image -> add(inline.dest, explicit = true)
+                is MarkdownInlineFfi.Image -> add(inline.dest, kind = NostrLinkedMediaKind.Image)
                 is MarkdownInlineFfi.Link -> {
-                    add(inline.dest, explicit = false)
+                    add(inline.dest)
                     inlines(inline.children, depth + 1)
                 }
-                is MarkdownInlineFfi.Autolink -> add(inline.url, explicit = false)
+                is MarkdownInlineFfi.Autolink -> add(inline.url)
                 is MarkdownInlineFfi.Emph -> inlines(inline.children, depth + 1)
                 is MarkdownInlineFfi.Strong -> inlines(inline.children, depth + 1)
                 is MarkdownInlineFfi.Strikethrough -> inlines(inline.children, depth + 1)
@@ -131,7 +161,8 @@ private class NostrBodyImageCollector {
 
 private const val IMAGE_SCAN_NODE_BUDGET = 1024
 private const val IMAGE_DESTINATION_MAX_CHARS = 2048
-private val IMAGE_PATH_HINTS = setOf("jpg", "jpeg", "png", "webp")
+private val IMAGE_PATH_HINTS = setOf("jpg", "jpeg", "png", "webp", "gif")
+private val VIDEO_PATH_HINTS = setOf("mp4", "m4v", "mov", "webm", "m3u8")
 
 /** A large body remains readable; extra card image discovery simply declines another parse. */
 internal fun boundedNostrImageBody(body: String?): String? =

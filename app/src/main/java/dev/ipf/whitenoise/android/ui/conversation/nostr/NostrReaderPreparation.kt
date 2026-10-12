@@ -18,7 +18,7 @@ internal data class NostrReaderPreparation(
     val blocks: List<MarkdownBlockFfi> = emptyList(),
     val textChunks: List<String> = emptyList(),
     val parsing: Boolean = true,
-    val imageUrls: List<String>? = null,
+    val media: NostrEventMediaCandidates? = null,
 )
 
 /** Prepares the complete body off the main thread and discards cancelled reader work. */
@@ -42,7 +42,7 @@ internal fun rememberNostrReaderPreparation(
                         blocks = blocks,
                         textChunks = textChunks,
                         parsing = false,
-                        imageUrls = nostrEventImageCandidates(card.imageUrls, document),
+                        media = nostrEventMediaCandidates(card.imageUrls, listOfNotNull(card.mediaUrl), document),
                     )
                 } catch (cancelled: CancellationException) {
                     throw cancelled
@@ -50,7 +50,7 @@ internal fun rememberNostrReaderPreparation(
                     NostrReaderPreparation(
                         textChunks = textChunks,
                         parsing = false,
-                        imageUrls = nostrEventImageCandidates(card.imageUrls, null),
+                        media = nostrEventMediaCandidates(card.imageUrls, listOfNotNull(card.mediaUrl), null),
                     )
                 }
             }

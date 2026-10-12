@@ -85,7 +85,8 @@ internal fun NostrEventReaderDialog(
     val scope = rememberCoroutineScope()
     val eventUri = authoredReference?.let(::nostrEventUri)
     val prepared = rememberNostrReaderPreparation(card, parseMarkdown)
-    var playing by remember(card.eventIdHex) { mutableStateOf(false) }
+    var playing by remember(card.eventIdHex) { mutableStateOf<String?>(null) }
+    var linkedImage by remember(card.eventIdHex) { mutableStateOf<String?>(null) }
     PlaybackDialog(
         onDismissRequest = onDismiss,
         properties =
@@ -117,18 +118,18 @@ internal fun NostrEventReaderDialog(
                     { openNostrEvent(context, uri) }
                 },
             onDismiss = onDismiss,
-            onPlayVideo = { playing = true },
+            onPlayVideo = { url -> playing = url },
+            onViewImage = { url -> linkedImage = url },
             preparation = prepared,
         )
-        if (playing) {
-            card.mediaUrl?.let { url ->
-                NostrVideoPlayerDialog(
-                    mediaUrl = url,
-                    mediaMimeType = card.mediaMimeType,
-                    onDismiss = { playing = false },
-                )
-            }
+        playing?.let { url ->
+            NostrVideoPlayerDialog(
+                mediaUrl = url,
+                mediaMimeType = card.mediaMimeType.takeIf { url == card.mediaUrl },
+                onDismiss = { playing = null },
+            )
         }
+        linkedImage?.let { url -> NostrLinkedImageDialog(url, onDismiss = { linkedImage = null }) }
     }
 }
 
@@ -146,7 +147,8 @@ internal fun NostrEventReaderScreen(
     onOpenExternal: (() -> Unit)? = null,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
-    onPlayVideo: (() -> Unit)? = null,
+    onPlayVideo: ((String) -> Unit)? = null,
+    onViewImage: ((String) -> Unit)? = null,
     preparation: NostrReaderPreparation? = null,
 ) {
     Surface(
@@ -172,6 +174,7 @@ internal fun NostrEventReaderScreen(
                 onNostrProfileTap = onNostrProfileTap,
                 onPlayVideo = onPlayVideo,
                 preparation = preparation,
+                onViewImage = onViewImage,
             )
         }
     }
@@ -223,8 +226,9 @@ private fun NostrEventReaderBody(
     authorDisplayName: (String) -> String,
     mentionDisplayName: (String) -> String?,
     onNostrProfileTap: (String) -> Unit,
-    onPlayVideo: (() -> Unit)?,
+    onPlayVideo: ((String) -> Unit)?,
     preparation: NostrReaderPreparation?,
+    onViewImage: ((String) -> Unit)?,
 ) {
     val blocks =
         preparation?.blocks ?: remember(document) {
@@ -234,10 +238,13 @@ private fun NostrEventReaderBody(
         preparation?.textChunks ?: remember(card.readerBody, card.summary) {
             nostrReaderTextChunks(card.readerBody ?: card.summary.orEmpty())
         }
-    val imageUrls =
-        preparation?.imageUrls ?: remember(card.imageUrls, document) {
-            nostrEventImageCandidates(card.imageUrls, document)
+    val media =
+        preparation?.media ?: remember(card.imageUrls, card.mediaUrl, document) {
+            nostrEventMediaCandidates(card.imageUrls, listOfNotNull(card.mediaUrl), document)
         }
+    val onMediaLink: (String) -> Boolean = { raw ->
+        activateNostrMediaLink(raw, media, onViewImage, onPlayVideo)
+    }
     WhiteNoiseLazyColumn(
         modifier = Modifier.fillMaxSize().testTag(NOSTR_EVENT_READER_BODY_TAG),
         contentPadding =
@@ -246,9 +253,9 @@ private fun NostrEventReaderBody(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item("event-context") {
-            NostrEventReaderContext(card, authoredReference, authorDisplayName, onPlayVideo)
+            NostrEventReaderContext(card, authoredReference, authorDisplayName, onPlayVideo, media.videoUrls)
         }
-        itemsIndexed(imageUrls, key = { _, url -> "image:$url" }) { _, url ->
+        itemsIndexed(media.imageUrls, key = { _, url -> "image:$url" }) { _, url ->
             NostrEventImagePane(url = url)
         }
         if (parsing) {
@@ -257,6 +264,7 @@ private fun NostrEventReaderBody(
             itemsIndexed(blocks, key = { index, _ -> "body:$index" }) { _, block ->
                 NostrEventReaderBlock(
                     block = block,
+                    onWebLinkActivated = onMediaLink,
                     mentionDisplayName = mentionDisplayName,
                     onNostrProfileTap = onNostrProfileTap,
                 )
@@ -275,7 +283,8 @@ private fun NostrEventReaderContext(
     card: NostrEventCardModel,
     authoredReference: String?,
     authorDisplayName: (String) -> String,
-    onPlayVideo: (() -> Unit)?,
+    onPlayVideo: ((String) -> Unit)?,
+    videoUrls: List<String>,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         card.title?.takeIf(String::isNotBlank)?.let { title ->
@@ -296,8 +305,10 @@ private fun NostrEventReaderContext(
             )
         }
         card.metadata.forEach { detail -> EmojiLabel(detail, style = MaterialTheme.typography.bodyMedium) }
-        if (card.mediaUrl != null && onPlayVideo != null) {
-            TextButton(onClick = onPlayVideo) { Text(stringResource(R.string.nostr_event_play_video)) }
+        if (onPlayVideo != null) {
+            videoUrls.forEach { url ->
+                TextButton(onClick = { onPlayVideo(url) }) { Text(stringResource(R.string.nostr_event_play_video)) }
+            }
         }
     }
 }

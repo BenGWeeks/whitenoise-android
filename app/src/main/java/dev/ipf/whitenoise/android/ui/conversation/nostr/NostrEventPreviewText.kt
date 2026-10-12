@@ -17,7 +17,7 @@ import kotlinx.coroutines.withContext
 
 private data class NostrPreviewDocument(
     val document: MarkdownDocumentFfi?,
-    val bodyImageUrls: List<String>,
+    val media: NostrEventMediaCandidates,
 )
 
 /** Resolves profile names without briefly displaying stale or raw mention text. */
@@ -44,24 +44,35 @@ internal fun rememberNostrEventPreviewState(
                     } else {
                         bodyImageParsePermits.withPermit { parsePreviewDocument(body, parseMarkdown) }
                     }
-                NostrPreviewDocument(document, nostrEventImageCandidates(emptyList(), bodyDocument))
+                NostrPreviewDocument(document, nostrEventMediaCandidates(emptyList(), emptyList(), bodyDocument))
             }
     }
     val document = prepared?.document
-    val imageUrls =
-        remember(card?.imageUrls, prepared?.bodyImageUrls) {
-            nostrEventImageCandidates(card?.imageUrls.orEmpty() + prepared?.bodyImageUrls.orEmpty(), null)
+    val media =
+        remember(card?.imageUrls, card?.mediaUrl, prepared?.media) {
+            nostrEventMediaCandidates(
+                card?.imageUrls.orEmpty() + prepared?.media?.imageUrls.orEmpty(),
+                listOfNotNull(card?.mediaUrl) + prepared?.media?.videoUrls.orEmpty(),
+                null,
+            )
         }
     return when {
-        card != null && prepared == null -> NostrEventCardState.Loaded(card.copy(summary = null, imageUrls = imageUrls))
+        card != null && prepared == null ->
+            NostrEventCardState.Loaded(
+                card.copy(summary = null, imageUrls = media.imageUrls, mediaUrl = media.videoUrls.firstOrNull()),
+            )
         card != null && document != null && document.blocks.isNotEmpty() ->
             NostrEventCardState.Loaded(
                 card.copy(
                     summary = markdownDocumentToPreviewText(document, PREVIEW_TEXT_BUDGET, mentionDisplayName),
-                    imageUrls = imageUrls,
+                    imageUrls = media.imageUrls,
+                    mediaUrl = media.videoUrls.firstOrNull(),
                 ),
             )
-        card != null -> NostrEventCardState.Loaded(card.copy(imageUrls = imageUrls))
+        card != null ->
+            NostrEventCardState.Loaded(
+                card.copy(imageUrls = media.imageUrls, mediaUrl = media.videoUrls.firstOrNull()),
+            )
         else -> state
     }
 }

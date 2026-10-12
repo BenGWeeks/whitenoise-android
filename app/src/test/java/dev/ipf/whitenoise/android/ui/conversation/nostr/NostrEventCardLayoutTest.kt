@@ -1,0 +1,60 @@
+package dev.ipf.whitenoise.android.ui.conversation.nostr
+
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.height
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.test.assertHeightIsEqualTo
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.unit.dp
+import dev.ipf.whitenoise.android.ui.theme.WhiteNoiseTheme
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [36], qualifiers = "w360dp-h1000dp-mdpi")
+class NostrEventCardLayoutTest {
+    @get:Rule val composeRule = createComposeRule()
+
+    @Test
+    fun shortCardsHaveNoReservedBlankSpaceOrExpansionRow() {
+        composeRule.setContent {
+            WhiteNoiseTheme {
+                Box(Modifier.testTag("card")) {
+                    NostrEventCardLayout(400.dp, onExpand = {}) { Box(Modifier.height(40.dp)) }
+                }
+            }
+        }
+        composeRule.onNodeWithTag("card").assertHeightIsEqualTo(40.dp)
+        assertTrue(composeRule.onAllNodesWithTag(NOSTR_CARD_EXPAND_TAG).fetchSemanticsNodes().isEmpty())
+    }
+
+    @Test
+    fun overflowKeepsExpansionVisibleAndRemovesItWhenWindowGrows() {
+        val ceiling = mutableStateOf(150.dp)
+        var expanded = 0
+        composeRule.setContent {
+            WhiteNoiseTheme {
+                Box(Modifier.testTag("card")) {
+                    NostrEventCardLayout(ceiling.value, onExpand = { expanded++ }) { Box(Modifier.height(200.dp)) }
+                }
+            }
+        }
+        composeRule.onNodeWithTag("card").assertHeightIsEqualTo(150.dp)
+        composeRule.onNodeWithTag(NOSTR_CARD_EXPAND_TAG).assertIsDisplayed().performClick()
+        assertEquals(1, expanded)
+        composeRule.runOnIdle { ceiling.value = 400.dp }
+        composeRule.onNodeWithTag("card").assertHeightIsEqualTo(200.dp)
+        assertTrue(composeRule.onAllNodesWithTag(NOSTR_CARD_EXPAND_TAG).fetchSemanticsNodes().isEmpty())
+    }
+}
