@@ -338,6 +338,7 @@ class AnimatedProfileAvatarLayerTest {
         decoder: suspend (ByteArray, Int) -> Drawable? = decode,
     ) {
         AnimatedProfileAvatarLayer(
+            explicitViewer = true,
             source = source,
             maxEdgePx = 48,
             contentScale = ContentScale.Crop,

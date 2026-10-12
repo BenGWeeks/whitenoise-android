@@ -38,12 +38,13 @@ suspend fun decodeMessageAttachmentImage(
     mediaType: String,
     staticMaxEdgePx: Int,
     animatedMaxEdgePx: Int = MediaPipeline.ANIMATED_IMAGE_MAX_EDGE_PX,
+    animationAllowed: Boolean = false,
 ): DecodedAttachmentPresentation? =
     withContext(Dispatchers.Default) {
         decodeAdmittedAttachmentImage<DecodedAttachmentPresentation>(
             bytes = bytes,
             decodeAnimated = {
-                MediaPipeline.decodeAnimatedDrawable(bytes, animatedMaxEdgePx)?.let {
+                (if (animationAllowed) MediaPipeline.decodeAnimatedDrawable(bytes, animatedMaxEdgePx) else null)?.let {
                     DecodedAttachmentPresentation.Animated(it)
                 }
             },
@@ -61,11 +62,12 @@ fun AnimatedDrawableAttachmentImage(
     contentDescription: String?,
     contentScale: ContentScale,
     modifier: Modifier = Modifier,
+    active: Boolean = true,
 ) {
-    DisposableEffect(drawable) {
+    DisposableEffect(drawable, active) {
         val animated = drawable as? AnimatedImageDrawable
         animated?.repeatCount = AnimatedImageDrawable.REPEAT_INFINITE
-        animated?.start()
+        if (active) animated?.start() else animated?.stop()
         onDispose {
             animated?.stop()
         }

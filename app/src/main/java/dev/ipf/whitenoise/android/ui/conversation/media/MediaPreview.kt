@@ -191,21 +191,9 @@ private fun decodeStagedPreviewBitmap(
         // forever on a video and leaves the sheet stuck). Scaled to
         // the staging tile size — full-res posters from a 4K clip
         // would be a ~33 MB ARGB bitmap per tile.
-        runCatching {
-            val mmr = android.media.MediaMetadataRetriever()
-            try {
-                mmr.setDataSource(context, uri)
-                mmr
-                    .getScaledFrameAtTime(
-                        0L,
-                        android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC,
-                        maxEdgePx,
-                        maxEdgePx,
-                    )
-            } finally {
-                runCatching { mmr.release() }
-            }
-        }.getOrNull()
+        dev.ipf.whitenoise.android.media.sandbox.IsolatedMediaDecoder
+            .probeUri(context.contentResolver, uri, maxEdgePx)
+            ?.poster
     } else {
         // Decode the picked image straight to a sampled bitmap,
         // preserving its native format and alpha. Earlier this

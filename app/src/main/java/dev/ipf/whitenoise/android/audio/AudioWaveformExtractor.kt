@@ -6,7 +6,6 @@ import android.media.MediaFormat
 import android.util.Log
 import android.util.LruCache
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
@@ -68,7 +67,8 @@ object AudioWaveformExtractor {
                 try {
                     decodeGate
                         .withPermit {
-                            decodeBlocking(file) { ensureActive() }
+                            dev.ipf.whitenoise.android.media.sandbox.IsolatedMediaDecoder
+                                .waveform(file)
                         }.also { cache.put(cacheKey, it ?: UNAVAILABLE_WAVEFORM) }
                 } catch (throwable: Throwable) {
                     if (throwable is CancellationException) throw throwable
@@ -81,15 +81,8 @@ object AudioWaveformExtractor {
 
     internal fun waveformCacheKey(file: File): String = "${file.absolutePath}:${file.length()}:${file.lastModified()}"
 
-    private fun decodeBlocking(
-        file: File,
-        cancellationCheck: () -> Unit,
-    ): FloatArray? =
-        decodeBlocking(
-            filePath = file.absolutePath,
-            resources = AndroidAudioDecoderResources,
-            cancellationCheck = cancellationCheck,
-        )
+    internal fun decodeFromDescriptor(descriptor: java.io.FileDescriptor): FloatArray? =
+        decodeBlocking(filePath = "", resources = AndroidAudioDecoderResources(descriptor))
 
     internal fun <FormatT> decodeBlocking(
         filePath: String,
@@ -401,20 +394,23 @@ internal interface AudioDecoderCodec<FormatT> {
     fun release()
 }
 
-private object AndroidAudioDecoderResources : AudioDecoderResources<MediaFormat> {
-    override fun createExtractor(): AudioDecoderExtractor<MediaFormat> = AndroidAudioDecoderExtractor(MediaExtractor())
+private class AndroidAudioDecoderResources(
+    private val descriptor: java.io.FileDescriptor,
+) : AudioDecoderResources<MediaFormat> {
+    override fun createExtractor(): AudioDecoderExtractor<MediaFormat> = AndroidAudioDecoderExtractor(MediaExtractor(), descriptor)
 
     override fun createCodec(mime: String): AudioDecoderCodec<MediaFormat> = AndroidAudioDecoderCodec(MediaCodec.createDecoderByType(mime))
 }
 
 private class AndroidAudioDecoderExtractor(
     private val extractor: MediaExtractor,
+    private val descriptor: java.io.FileDescriptor,
 ) : AudioDecoderExtractor<MediaFormat> {
     override val trackCount: Int get() = extractor.trackCount
     override val sampleTime: Long get() = extractor.sampleTime
 
     override fun setDataSource(filePath: String) {
-        extractor.setDataSource(filePath)
+        extractor.setDataSource(descriptor)
     }
 
     override fun getTrackFormat(index: Int): MediaFormat = extractor.getTrackFormat(index)

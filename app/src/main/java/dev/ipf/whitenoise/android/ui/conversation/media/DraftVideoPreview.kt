@@ -42,7 +42,6 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
-import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import dev.ipf.whitenoise.android.R
@@ -204,7 +203,8 @@ internal fun rememberDraftVideoPlayer(
                         .setHandleAudioBecomingNoisy(true)
                         .build()
                         .apply {
-                            setMediaItem(MediaItem.fromUri(uri), position)
+                            setMediaSource(localVideoSource(context, uri))
+                            seekTo(position)
                             this.volume = volume
                             setPlaybackSpeed(speed)
                             playWhenReady = false

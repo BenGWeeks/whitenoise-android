@@ -3,7 +3,6 @@
 package dev.ipf.whitenoise.android.media.editor
 
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Matrix
 import android.graphics.Paint
@@ -214,11 +213,13 @@ internal class PhotoEditorRenderer(
         if (MediaPipeline.imageAnimationStatus(sourceBytes) != ImageAnimationStatus.STATIC) {
             return PhotoEditorInspectResult.Failure(PhotoEditorSourceFailure.Animated)
         }
-        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        val info =
+            dev.ipf.whitenoise.android.media.sandbox.IsolatedMediaDecoder
+                .inspect(sourceBytes)
+                ?: return PhotoEditorInspectResult.Failure(PhotoEditorSourceFailure.InvalidBounds)
         return try {
-            BitmapFactory.decodeByteArray(sourceBytes, 0, sourceBytes.size, bounds)
-            val width = bounds.outWidth
-            val height = bounds.outHeight
+            val width = info.width
+            val height = info.height
             when {
                 width <= 0 || height <= 0 ->
                     PhotoEditorInspectResult.Failure(PhotoEditorSourceFailure.InvalidBounds)
@@ -229,7 +230,7 @@ internal class PhotoEditorRenderer(
                 max(width, height).toDouble() / min(width, height).toDouble() > MAX_SOURCE_ASPECT_RATIO ->
                     PhotoEditorInspectResult.Failure(PhotoEditorSourceFailure.AspectRatioLimit)
                 else -> {
-                    val orientation = MediaPipeline.readExifOrientation(sourceBytes)
+                    val orientation = info.orientation
                     val oriented = MediaPipeline.orientedSourceDimensions(width, height, orientation)
                     PhotoEditorInspectResult.Success(
                         PhotoEditorSourceInfo(
