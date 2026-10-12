@@ -56,22 +56,30 @@ internal fun rememberNostrEventPreviewState(
                 null,
             )
         }
+    val selectedVideo = media.videoUrls.firstOrNull()
+    val selectedMimeType = card?.mediaMimeType?.takeIf { selectedVideo == card.mediaUrl }
     return when {
         card != null && prepared == null ->
             NostrEventCardState.Loaded(
-                card.copy(summary = null, imageUrls = media.imageUrls, mediaUrl = media.videoUrls.firstOrNull()),
+                card.copy(
+                    summary = null,
+                    imageUrls = media.imageUrls,
+                    mediaUrl = selectedVideo,
+                    mediaMimeType = selectedMimeType,
+                ),
             )
         card != null && document != null && document.blocks.isNotEmpty() ->
             NostrEventCardState.Loaded(
                 card.copy(
                     summary = markdownDocumentToPreviewText(document, PREVIEW_TEXT_BUDGET, mentionDisplayName),
                     imageUrls = media.imageUrls,
-                    mediaUrl = media.videoUrls.firstOrNull(),
+                    mediaUrl = selectedVideo,
+                    mediaMimeType = selectedMimeType,
                 ),
             )
         card != null ->
             NostrEventCardState.Loaded(
-                card.copy(imageUrls = media.imageUrls, mediaUrl = media.videoUrls.firstOrNull()),
+                card.copy(imageUrls = media.imageUrls, mediaUrl = selectedVideo, mediaMimeType = selectedMimeType),
             )
         else -> state
     }

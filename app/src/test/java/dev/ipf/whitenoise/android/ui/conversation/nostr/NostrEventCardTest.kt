@@ -27,6 +27,7 @@ import dev.ipf.whitenoise.android.core.AvatarImageLoader
 import dev.ipf.whitenoise.android.ui.theme.WhiteNoiseTheme
 import kotlinx.coroutines.CompletableDeferred
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -78,6 +79,47 @@ class NostrEventCardTest {
         } finally {
             AvatarImageLoader.resetProfileImageFetcherForTests()
         }
+    }
+
+    @Test
+    fun bodyVideoFallbackDoesNotInheritAnotherUrlsMimeType() {
+        val fallback = "https://cdn.example/body.mp4"
+        val original =
+            noteCard().copy(
+                readerBody = "A body video",
+                mediaUrl = "https://cdn.example/${"x".repeat(2048)}.m3u8",
+                mediaMimeType = "application/vnd.apple.mpegurl",
+            )
+        var presented: NostrEventCardModel? = null
+        composeRule.setContent {
+            presented =
+                (
+                    rememberNostrEventPreviewState(
+                        NostrEventCardState.Loaded(original),
+                        mentionDisplayName = { null },
+                        parseMarkdown = {
+                            MarkdownDocumentFfi(
+                                listOf(
+                                    MarkdownBlockFfi.Paragraph(
+                                        listOf(
+                                            MarkdownInlineFfi.Link(
+                                                fallback,
+                                                null,
+                                                listOf(MarkdownInlineFfi.Text("Video")),
+                                                MarkdownLinkDestinationKindFfi.WEB,
+                                            ),
+                                        ),
+                                    ),
+                                ),
+                                false,
+                                byteArrayOf(),
+                            )
+                        },
+                    ) as NostrEventCardState.Loaded
+                ).card
+        }
+        composeRule.waitUntil(10_000) { presented?.mediaUrl == fallback }
+        composeRule.runOnIdle { assertNull(presented?.mediaMimeType) }
     }
 
     private fun bodyImageDocument(text: String): MarkdownDocumentFfi {

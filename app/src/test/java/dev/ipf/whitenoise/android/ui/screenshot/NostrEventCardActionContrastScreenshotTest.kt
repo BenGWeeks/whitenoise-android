@@ -1,5 +1,6 @@
 package dev.ipf.whitenoise.android.ui.screenshot
 
+import android.content.Context
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.height
@@ -14,13 +15,13 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
-import androidx.compose.ui.test.printToString
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.dp
+import androidx.test.core.app.ApplicationProvider
 import com.github.takahirom.roborazzi.captureRoboImage
+import dev.ipf.whitenoise.android.R
 import dev.ipf.whitenoise.android.ui.conversation.messages.colorFromArgb
 import dev.ipf.whitenoise.android.ui.conversation.messages.messageBubblePresentation
 import dev.ipf.whitenoise.android.ui.conversation.nostr.NostrEventCard
@@ -66,11 +67,7 @@ class NostrEventCardActionContrastScreenshotTest {
         render(dark = true, amoled = false) {
             NostrEventCardLayout(140.dp, onExpand = {}) { Box(Modifier.height(220.dp)) }
         }
-        val footer = rule.onNodeWithText("Expand").fetchSemanticsNode()
-        val outgoing = rule.onNodeWithTag("outgoing").fetchSemanticsNode()
-        println("Expansion fixture: outgoing=${outgoing.boundsInRoot}, footer=${footer.boundsInRoot}")
-        println(rule.onRoot(useUnmergedTree = true).printToString())
-        assertForeground("Expand")
+        assertForeground(ApplicationProvider.getApplicationContext<Context>().getString(R.string.nostr_event_expand))
     }
 
     private fun media(

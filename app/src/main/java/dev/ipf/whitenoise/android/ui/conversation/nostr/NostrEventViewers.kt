@@ -242,9 +242,10 @@ private fun NostrEventReaderBody(
         preparation?.media ?: remember(card.imageUrls, card.mediaUrl, document) {
             nostrEventMediaCandidates(card.imageUrls, listOfNotNull(card.mediaUrl), document)
         }
-    val onMediaLink: (String) -> Boolean = { raw ->
-        activateNostrMediaLink(raw, media, onViewImage, onPlayVideo)
-    }
+    val onMediaLink: (String) -> Boolean =
+        remember(media, onViewImage, onPlayVideo) {
+            { raw -> activateNostrMediaLink(raw, media, onViewImage, onPlayVideo) }
+        }
     WhiteNoiseLazyColumn(
         modifier = Modifier.fillMaxSize().testTag(NOSTR_EVENT_READER_BODY_TAG),
         contentPadding =
