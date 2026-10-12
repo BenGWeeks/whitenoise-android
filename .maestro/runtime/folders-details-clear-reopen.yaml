@@ -4,9 +4,21 @@ name: folders-details-clear-reopen
 - runFlow: ../fixtures/folder-details-draft.yaml
 - runFlow: ../fixtures/save-folder-reopen.yaml
 - runFlow: ../fixtures/reveal-folder-description.yaml
-- tapOn:
+- longPressOn:
     id: folder.description
-- eraseText
+- runFlow:
+    when:
+      notVisible: (?i)select all
+    commands:
+    - tapOn: More options
+- tapOn: (?i)select all
+- assertVisible:
+    id: folder.description
+    focused: true
+- eraseText: 1
+- assertNotVisible:
+    id: folder.description
+    text: (?s)^(?!Description$).+
 - hideKeyboard
 - scrollUntilVisible:
     element:
@@ -30,7 +42,7 @@ name: folders-details-clear-reopen
 - runFlow: ../fixtures/reveal-folder-description.yaml
 - assertNotVisible:
     id: folder.description
-    text: ^Maestro folder note$
+    text: (?s)^(?!Description$).+
 - scrollUntilVisible:
     element:
       id: folder.showWhenEmpty
