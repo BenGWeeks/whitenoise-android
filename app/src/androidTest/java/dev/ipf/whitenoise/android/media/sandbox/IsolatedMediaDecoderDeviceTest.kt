@@ -39,6 +39,24 @@ class IsolatedMediaDecoderDeviceTest {
             assertFalse(worker.internetGranted)
             assertFalse(worker.runtimeInitialized)
             assertTrue(worker.privateCanaryDenied)
+            val jpeg = requireNotNull(IsolatedMediaDecoder.decode(imageBytes(Bitmap.CompressFormat.JPEG, Color.RED), 2))
+            try {
+                assertTrue(Color.red(jpeg.getPixel(0, 0)) >= 250)
+                assertTrue(Color.green(jpeg.getPixel(0, 0)) <= 5)
+                assertEquals(255, Color.alpha(jpeg.getPixel(0, 0)))
+            } finally {
+                jpeg.recycle()
+            }
+            val transparent =
+                requireNotNull(
+                    IsolatedMediaDecoder.decode(imageBytes(Bitmap.CompressFormat.PNG, Color.argb(128, 255, 0, 0)), 2),
+                )
+            try {
+                assertEquals(128, Color.alpha(transparent.getPixel(0, 0)))
+                assertTrue(Color.red(transparent.getPixel(0, 0)) >= 254)
+            } finally {
+                transparent.recycle()
+            }
         } finally {
             decoded?.recycle()
             canary.delete()
@@ -59,7 +77,13 @@ class IsolatedMediaDecoderDeviceTest {
         IsolatedMediaDecoder.install(InstrumentationRegistry.getInstrumentation().targetContext)
         requireNotNull(IsolatedMediaDecoder.decode(png(), 128)).recycle()
         val prior = requireNotNull(IsolatedMediaDecoder.lastIsolation).uid
-        IsolatedMediaDecoder.resetForAccount()
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        instrumentation.runOnMainSync {
+            val app =
+                instrumentation.targetContext.applicationContext as
+                    dev.ipf.whitenoise.android.WhiteNoiseApplication
+            app.appState.clearCrossAccountCachesForTest()
+        }
         requireNotNull(IsolatedMediaDecoder.decode(png(), 128)).recycle()
         assertNotEquals(prior, requireNotNull(IsolatedMediaDecoder.lastIsolation).uid)
     }
@@ -76,11 +100,16 @@ class IsolatedMediaDecoderDeviceTest {
         assertNotEquals(prior, requireNotNull(IsolatedMediaDecoder.lastIsolation).uid)
     }
 
-    private fun png(): ByteArray {
+    private fun png(): ByteArray = imageBytes(Bitmap.CompressFormat.PNG, Color.RED)
+
+    private fun imageBytes(
+        format: Bitmap.CompressFormat,
+        color: Int,
+    ): ByteArray {
         val bitmap = Bitmap.createBitmap(2, 2, Bitmap.Config.ARGB_8888)
         return try {
-            bitmap.eraseColor(Color.RED)
-            ByteArrayOutputStream().also { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()
+            bitmap.eraseColor(color)
+            ByteArrayOutputStream().also { bitmap.compress(format, 100, it) }.toByteArray()
         } finally {
             bitmap.recycle()
         }

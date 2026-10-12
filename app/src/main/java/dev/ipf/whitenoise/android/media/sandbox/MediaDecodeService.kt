@@ -62,56 +62,76 @@ class MediaDecodeService : Service() {
 
     @Suppress("DEPRECATION", "ReturnCount") // Legacy framework descriptors and fail-closed operation guards.
     private fun execute(data: Bundle): Bundle {
-        val response =
-            Bundle().apply {
-                putInt("uid", Process.myUid())
-                putBoolean("isolated", Process.isIsolated())
-                putBoolean("privateCanaryDenied", privateCanaryDenied())
-                putBoolean("runtimeInitialized", (application as dev.ipf.whitenoise.android.WhiteNoiseApplication).initializedAppState() != null)
-                putBoolean("internetGranted", checkSelfPermission(android.Manifest.permission.INTERNET) == android.content.pm.PackageManager.PERMISSION_GRANTED)
-            }
+        val response = isolationResponse()
         val input = data.getParcelable<ParcelFileDescriptor>("input") ?: return response
         val output = data.getParcelable<SharedMemory>("output") ?: return response.also { input.close() }
         input.use {
             output.use {
                 if (data.getInt("version") != MediaDecodePolicy.VERSION) return response
                 val operation = data.getInt("operation")
-                if (dev.ipf.whitenoise.android.BuildConfig.DEBUG && operation == MediaDecodePolicy.DEBUG_HANG) {
-                    Thread.sleep(30000L) // Controlled debug-only watchdog fixture; no production hang command.
-                    return response
-                }
                 if (operation == MediaDecodePolicy.PROBE || operation == MediaDecodePolicy.WAVEFORM) {
                     return mediaOperation(input, output, data, response)
                 }
-                val bytes = readInput(input) ?: return response
-                if (operation == MediaDecodePolicy.EXIF) {
-                    response.putInt(
-                        "orientation",
-                        dev.ipf.whitenoise.android.media.MediaPipeline
-                            .readExifOrientationInDecoder(bytes),
-                    )
-                    response.putBoolean("success", true)
-                    return response
-                }
-                if (operation == MediaDecodePolicy.INSPECT) {
-                    PlatformMediaDecoder.inspect(bytes)?.let { info ->
-                        response.putInt("width", info.width)
-                        response.putInt("height", info.height)
-                        response.putString("mime", info.mime)
-                        response.putInt("orientation", info.orientation)
-                        response.putBoolean("success", true)
-                    }
-                    return response
-                }
-                val bitmap =
-                    when (operation) {
-                        MediaDecodePolicy.DECODE -> PlatformMediaDecoder.decode(bytes, data.getInt("edge"), data.getBoolean("oriented"))
-                        MediaDecodePolicy.SVG -> PlatformMediaDecoder.svg(bytes)
-                        else -> null
-                    } ?: return response
-                bitmap.usePixels(output, data.getInt("edge"), response)
+                return imageOperation(input, output, data, response)
             }
         }
+    }
+
+    private fun isolationResponse(): Bundle =
+        Bundle().apply {
+            putInt("uid", Process.myUid())
+            putBoolean("isolated", Process.isIsolated())
+            putBoolean("privateCanaryDenied", privateCanaryDenied())
+            val app = application as dev.ipf.whitenoise.android.WhiteNoiseApplication
+            putBoolean("runtimeInitialized", app.initializedAppState() != null)
+            val permission = checkSelfPermission(android.Manifest.permission.INTERNET)
+            putBoolean("internetGranted", permission == android.content.pm.PackageManager.PERMISSION_GRANTED)
+        }
+
+    @Suppress("ReturnCount") // Each metadata-only operation returns before pixel allocation.
+    private fun imageOperation(
+        input: ParcelFileDescriptor,
+        output: SharedMemory,
+        data: Bundle,
+        response: Bundle,
+    ): Bundle {
+        val operation = data.getInt("operation")
+        if (dev.ipf.whitenoise.android.BuildConfig.DEBUG && operation == MediaDecodePolicy.DEBUG_HANG) {
+            Thread.sleep(MediaDecodePolicy.DEBUG_HANG_MS)
+            return response
+        }
+        val bytes = readInput(input) ?: return response
+        if (operation == MediaDecodePolicy.EXIF) {
+            response.putInt(
+                "orientation",
+                dev.ipf.whitenoise.android.media.MediaPipeline
+                    .readExifOrientationInDecoder(bytes),
+            )
+            response.putBoolean("success", true)
+            return response
+        }
+        if (operation == MediaDecodePolicy.INSPECT) {
+            PlatformMediaDecoder.inspect(bytes)?.let { info ->
+                response.putInt("width", info.width)
+                response.putInt("height", info.height)
+                response.putString("mime", info.mime)
+                response.putInt("orientation", info.orientation)
+                response.putBoolean("success", true)
+            }
+            return response
+        }
+        val bitmap =
+            when (operation) {
+                MediaDecodePolicy.DECODE ->
+                    PlatformMediaDecoder.decode(
+                        bytes,
+                        data.getInt("edge"),
+                        data.getBoolean("oriented"),
+                    )
+                MediaDecodePolicy.SVG -> PlatformMediaDecoder.svg(bytes)
+                else -> null
+            } ?: return response
+        bitmap.usePixels(output, data.getInt("edge"), response)
         return response
     }
 
@@ -149,6 +169,7 @@ class MediaDecodeService : Service() {
         return response
     }
 
+    @Suppress("ReturnCount") // Stat length, truncation and trailing data are separate descriptor guards.
     private fun readInput(input: ParcelFileDescriptor): ByteArray? {
         val size = input.statSize
         if (size !in 1..MediaDecodePolicy.MAX_INPUT_BYTES.toLong()) return null
@@ -170,7 +191,8 @@ class MediaDecodeService : Service() {
         response: Bundle,
     ) {
         try {
-            if (config != Bitmap.Config.ARGB_8888 || rowBytes != width * Int.SIZE_BYTES || !isPremultiplied) return
+            if (config != Bitmap.Config.ARGB_8888 || rowBytes != width * Int.SIZE_BYTES) return
+            if (hasAlpha() && !isPremultiplied) return
             val count = MediaDecodePolicy.pixelBytes(width, height, edge, output.size) ?: return
             val buffer = output.mapReadWrite()
             try {

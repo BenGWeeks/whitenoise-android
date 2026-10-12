@@ -90,7 +90,7 @@ internal fun SignUpScreen(
             } else {
                 withContext(Dispatchers.Default) {
                     dev.ipf.whitenoise.android.media.MediaPipeline
-                        .decodeSampledBitmap(bytes, 512)
+                        .decodeSampledBitmap(bytes, dev.ipf.whitenoise.android.core.PROFILE_AVATAR_MAX_DIMENSION)
                         ?.asImageBitmap()
                 }
             }

@@ -369,7 +369,9 @@ private fun rememberShelfAnimation(uri: Uri): Drawable? {
                             ensureActive = { ensureActive() },
                         )
                     decodeLocalPreviewAnimation(source) { bytes ->
-                        MediaPipeline.decodeSampledBitmap(bytes, PREVIEW_DECODE_EDGE)?.let { android.graphics.drawable.BitmapDrawable(resources, it) }
+                        MediaPipeline.decodeSampledBitmap(bytes, PREVIEW_DECODE_EDGE)?.let {
+                            android.graphics.drawable.BitmapDrawable(resources, it)
+                        }
                     }
                 }
         }

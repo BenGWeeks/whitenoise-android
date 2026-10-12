@@ -23,8 +23,8 @@ internal val PendingAttachment.isPendingVisualMedia: Boolean
  *
  * A message that has not been sent has no materialized file to seek in, but the upload bytes are
  * already retained in memory for the retry path. Passing them through an unlinked read-only descriptor
- * keeps that the only copy: nothing plaintext is written to disk, so nothing has to be cleaned up
- * or excluded from backup afterwards. The frame is scaled to the same bubble thumbnail edge the
+ * avoids a second full-video array: staging uses an unlinked temporary inode, with no surviving
+ * plaintext pathname to restore or include in backups. The frame is scaled to the same bubble thumbnail edge the
  * confirmed poster uses, so a 4K clip cannot hold a ~33 MB bitmap per visible bubble.
  *
  * Call this off the main thread. Returns an empty frame when the bytes carry no decodable video.

@@ -206,6 +206,7 @@ internal class ContactPictureStore(
         internal val lock = Any()
 
         /** Both encoded length and decoded geometry are checked before any image allocation. */
+        @Suppress("ReturnCount") // Byte size and sandbox inspection fail closed before geometry checks.
         private fun validPicture(bytes: ByteArray): Boolean {
             if (bytes.size !in 1..MAX_BYTES) return false
             val info =

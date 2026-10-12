@@ -19,7 +19,14 @@ internal object TestMediaDecodeTransport : MediaDecodeTransport {
         edge: Int,
         oriented: Boolean,
         operation: Int,
-    ): Bitmap? = if (operation == MediaDecodePolicy.SVG) PlatformMediaDecoder.svg(bytes) else PlatformMediaDecoder.decode(bytes, edge, oriented)
+    ): Bitmap? =
+        if (operation ==
+            MediaDecodePolicy.SVG
+        ) {
+            PlatformMediaDecoder.svg(bytes)
+        } else {
+            PlatformMediaDecoder.decode(bytes, edge, oriented)
+        }
 
     override fun exif(bytes: ByteArray): Int? =
         dev.ipf.whitenoise.android.media.MediaPipeline
@@ -43,5 +50,8 @@ internal object TestMediaDecodeTransport : MediaDecodeTransport {
         file: File,
         edge: Int,
         poster: Boolean,
-    ): MediaProbe? = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { probeMediaInDecoder(it, edge, poster) }
+    ): MediaProbe? =
+        ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use {
+            probeMediaInDecoder(it, edge, poster)
+        }
 }

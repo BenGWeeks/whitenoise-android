@@ -20,7 +20,7 @@ internal object PlatformMediaDecoder {
         return ImageInspection(
             bounds.outWidth,
             bounds.outHeight,
-            bounds.outMimeType?.take(64).orEmpty(),
+            bounds.outMimeType?.take(MediaDecodePolicy.MAX_MIME_CHARS).orEmpty(),
             MediaPipeline.readExifOrientationInDecoder(bytes),
         )
     }
@@ -39,6 +39,6 @@ internal object PlatformMediaDecoder {
 
     fun svg(bytes: ByteArray): Bitmap? {
         val raster = runBlocking { GroupSvgRasterizer.rasterizeInDecoder(bytes) }
-        return decode(raster, 1024, false)
+        return decode(raster, MediaDecodePolicy.SVG_EDGE, false)
     }
 }

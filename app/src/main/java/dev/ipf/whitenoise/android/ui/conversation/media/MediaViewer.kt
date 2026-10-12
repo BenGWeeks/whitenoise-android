@@ -1039,7 +1039,8 @@ internal fun ViewerPage(
             .rememberSystemAnimationsEnabled()
     val viewerLifecycle by androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle.currentStateFlow
         .collectAsState()
-    val animateCurrent = isCurrent && animationsEnabled && viewerLifecycle.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)
+    val animateCurrent =
+        isCurrent && animationsEnabled && viewerLifecycle.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)
     val cachedThumbnail =
         remember(pageKey) {
             controller
@@ -1070,7 +1071,9 @@ internal fun ViewerPage(
         // swipe must not each run a viewer-resolution decode (with its ~4×
         // transient) concurrently with the current page's. A page decodes
         // once it becomes current; an already-decoded bitmap is kept.
-        if (!isCurrent || presentation != null) return@LaunchedEffect
+        val promoteAnimation =
+            animateCurrent && (presentation as? DecodedAttachmentPresentation.Static)?.animationDeferred == true
+        if (!isCurrent || (presentation != null && !promoteAnimation)) return@LaunchedEffect
         viewerFailed = false
         viewerTooLarge = false
         try {

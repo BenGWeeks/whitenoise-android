@@ -1,15 +1,7 @@
 package dev.ipf.whitenoise.android.media.sandbox
 
-import android.graphics.Bitmap
 import android.media.MediaMetadataRetriever
 import android.os.ParcelFileDescriptor
-
-internal data class MediaProbe(
-    val width: Int,
-    val height: Int,
-    val durationMs: Long,
-    val poster: Bitmap?,
-)
 
 /** Platform extractors see only the selected descriptor, never a path or network URL. */
 internal fun probeMediaInDecoder(
@@ -41,3 +33,9 @@ internal fun probeMediaInDecoder(
 
 internal const val MAX_MEDIA_DURATION_MS = 24L * 60 * 60 * 1000
 internal const val MAX_MEDIA_SOURCE_BYTES = 512L * 1024 * 1024
+
+internal fun validMediaRange(
+    size: Long,
+    offset: Long,
+    length: Long,
+): Boolean = offset >= 0L && length > 0L && length <= size && offset <= size - length

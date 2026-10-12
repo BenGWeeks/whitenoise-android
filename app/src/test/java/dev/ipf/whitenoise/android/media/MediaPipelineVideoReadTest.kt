@@ -81,7 +81,11 @@ class MediaPipelineVideoReadTest {
     @Implements(MediaMetadataRetriever::class)
     class ThrowingMetadataRetrieverShadow {
         @Implementation
-        fun setDataSource(path: String): Unit = throw RuntimeException("setDataSource failed")
+        fun setDataSource(
+            descriptor: java.io.FileDescriptor,
+            offset: Long,
+            length: Long,
+        ): Unit = throw RuntimeException("setDataSource failed")
 
         @Implementation
         fun release() {

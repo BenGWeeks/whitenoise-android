@@ -153,7 +153,9 @@ object AudioWaveformExtractor {
                 cancellationCheck()
                 loopIterations++
                 if (loopIterations > maxLoopIterations) {
-                    throw IllegalStateException("audio waveform decode exceeded $maxLoopIterations codec loop iterations")
+                    throw IllegalStateException(
+                        "audio waveform decode exceeded $maxLoopIterations codec loop iterations",
+                    )
                 }
                 if (nanoTime() - startedAtNanos > maxElapsedNanos) {
                     throw IllegalStateException("audio waveform decode exceeded ${maxElapsedNanos / 1_000_000L}ms")
@@ -168,7 +170,13 @@ object AudioWaveformExtractor {
                             activeCodec.queueInputBuffer(inIdx, 0, 0, 0, endOfStream = true)
                             endOfStream = true
                         } else {
-                            activeCodec.queueInputBuffer(inIdx, 0, sampleSize, activeExtractor.sampleTime, endOfStream = false)
+                            activeCodec.queueInputBuffer(
+                                inIdx,
+                                0,
+                                sampleSize,
+                                activeExtractor.sampleTime,
+                                endOfStream = false,
+                            )
                             activeExtractor.advance()
                         }
                     }
@@ -397,9 +405,11 @@ internal interface AudioDecoderCodec<FormatT> {
 private class AndroidAudioDecoderResources(
     private val descriptor: java.io.FileDescriptor,
 ) : AudioDecoderResources<MediaFormat> {
-    override fun createExtractor(): AudioDecoderExtractor<MediaFormat> = AndroidAudioDecoderExtractor(MediaExtractor(), descriptor)
+    override fun createExtractor(): AudioDecoderExtractor<MediaFormat> =
+        AndroidAudioDecoderExtractor(MediaExtractor(), descriptor)
 
-    override fun createCodec(mime: String): AudioDecoderCodec<MediaFormat> = AndroidAudioDecoderCodec(MediaCodec.createDecoderByType(mime))
+    override fun createCodec(mime: String): AudioDecoderCodec<MediaFormat> =
+        AndroidAudioDecoderCodec(MediaCodec.createDecoderByType(mime))
 }
 
 private class AndroidAudioDecoderExtractor(
@@ -484,7 +494,10 @@ private class AndroidAudioDecoderCodec(
 
     override fun getOutputBuffer(index: Int): ByteBuffer? = codec.getOutputBuffer(index)
 
-    override fun outputChannelCount(): Int = runCatching { codec.outputFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT) }.getOrDefault(1)
+    override fun outputChannelCount(): Int =
+        runCatching {
+            codec.outputFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
+        }.getOrDefault(1)
 
     override fun outputPcmEncoding(): Int =
         runCatching {

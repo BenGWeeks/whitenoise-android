@@ -291,6 +291,7 @@ object MediaPipeline {
         dev.ipf.whitenoise.android.media.sandbox.IsolatedMediaDecoder
             .decode(bytes, maxEdgePx, honorExifOrientation)
 
+    @Suppress("ReturnCount") // Reject invalid bounds and native allocation failure before returning pixels.
     internal fun decodeSampledBitmapInDecoder(
         bytes: ByteArray,
         maxEdgePx: Int,
@@ -565,7 +566,8 @@ object MediaPipeline {
             else -> EXIF_ORIENTATION_NORMAL
         }
 
-    internal fun exifOrientationRequiresPixelTransform(orientation: Int?): Boolean = normalizeExifOrientation(orientation) != EXIF_ORIENTATION_NORMAL
+    internal fun exifOrientationRequiresPixelTransform(orientation: Int?): Boolean =
+        normalizeExifOrientation(orientation) != EXIF_ORIENTATION_NORMAL
 
     internal fun exifOrientationSwapsDimensions(orientation: Int?): Boolean =
         when (normalizeExifOrientation(orientation)) {
@@ -604,7 +606,13 @@ object MediaPipeline {
         maxEdgePx: Int,
         orientation: Int,
     ): OrientedDecodeTarget? {
-        val (displayTargetW, displayTargetH) = targetDimensionsForExifOrientation(srcWidth, srcHeight, maxEdgePx, orientation)
+        val (displayTargetW, displayTargetH) =
+            targetDimensionsForExifOrientation(
+                srcWidth,
+                srcHeight,
+                maxEdgePx,
+                orientation,
+            )
         if (displayTargetW == 0 || displayTargetH == 0) return null
         val (rawTargetW, rawTargetH) =
             if (exifOrientationSwapsDimensions(orientation)) {
@@ -868,7 +876,8 @@ object MediaPipeline {
         uri: Uri,
         maxEdgePx: Int = DEFAULT_MAX_EDGE_PX,
         quality: Int = DEFAULT_JPEG_QUALITY,
-    ): DownscaledJpeg? = decodeSampledFromUri(contentResolver, uri, maxEdgePx)?.let { finishDownscaledJpeg(it, quality) }
+    ): DownscaledJpeg? =
+        decodeSampledFromUri(contentResolver, uri, maxEdgePx)?.let { finishDownscaledJpeg(it, quality) }
 
     /**
      * Byte-array counterpart to [readDownscaledJpeg] for a remotely selected

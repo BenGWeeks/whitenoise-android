@@ -90,7 +90,10 @@ internal object IsolatedMediaDecoder {
         safely { it.decode(byteArrayOf(1), 1, false, MediaDecodePolicy.DEBUG_HANG) }
     }
 
-    fun svg(bytes: ByteArray): Bitmap? = safely { it.decode(bytes, 1024, false, MediaDecodePolicy.SVG) }
+    fun svg(bytes: ByteArray): Bitmap? =
+        safely {
+            it.decode(bytes, MediaDecodePolicy.SVG_EDGE, false, MediaDecodePolicy.SVG)
+        }
 
     fun exif(bytes: ByteArray): Int? = safely { it.exif(bytes) }
 
@@ -104,7 +107,13 @@ internal object IsolatedMediaDecoder {
 
     private fun <T> safely(block: (MediaDecodeTransport) -> T?): T? =
         try {
-            if (transport is IsolatedMediaTransport && Looper.myLooper() == Looper.getMainLooper()) null else transport?.let(block)
+            if (transport is IsolatedMediaTransport &&
+                Looper.myLooper() == Looper.getMainLooper()
+            ) {
+                null
+            } else {
+                transport?.let(block)
+            }
         } catch (interrupted: InterruptedException) {
             Thread.currentThread().interrupt()
             null

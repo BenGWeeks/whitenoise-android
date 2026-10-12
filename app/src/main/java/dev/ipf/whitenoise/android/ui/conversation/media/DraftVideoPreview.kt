@@ -170,6 +170,7 @@ private fun KeepScreenOnWhilePlaying(playing: Boolean) {
  * remembering its position, volume and speed) as soon as either stops holding.
  */
 @Composable
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 internal fun rememberDraftVideoPlayer(
     uri: Uri,
     active: Boolean,

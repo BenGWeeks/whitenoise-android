@@ -19,6 +19,7 @@ import kotlinx.coroutines.withContext
 sealed interface DecodedAttachmentPresentation {
     data class Static(
         val bitmap: Bitmap,
+        val animationDeferred: Boolean = false,
     ) : DecodedAttachmentPresentation
 
     data class Animated(
@@ -41,6 +42,11 @@ suspend fun decodeMessageAttachmentImage(
     animationAllowed: Boolean = false,
 ): DecodedAttachmentPresentation? =
     withContext(Dispatchers.Default) {
+        val animationDeferred =
+            !animationAllowed &&
+                dev.ipf.whitenoise.android.media
+                    .admitAnimationSource(bytes) is
+                    dev.ipf.whitenoise.android.media.AnimationSourceAdmission.Admitted
         decodeAdmittedAttachmentImage<DecodedAttachmentPresentation>(
             bytes = bytes,
             decodeAnimated = {
@@ -50,7 +56,7 @@ suspend fun decodeMessageAttachmentImage(
             },
             decodeStill = {
                 MediaPipeline.decodeSampledBitmap(bytes, staticMaxEdgePx)?.let {
-                    DecodedAttachmentPresentation.Static(it)
+                    DecodedAttachmentPresentation.Static(it, animationDeferred)
                 }
             },
         )

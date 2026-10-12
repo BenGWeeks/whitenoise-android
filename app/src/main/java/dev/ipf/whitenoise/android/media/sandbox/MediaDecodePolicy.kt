@@ -22,6 +22,10 @@ internal object MediaDecodePolicy {
     const val WAVEFORM_WATCHDOG_MS = 35000L
     const val REFUSAL_TTL_MS = 60000L
     const val MAX_REFUSALS = 64
+    const val SVG_EDGE = 1024
+    const val MAX_MIME_CHARS = 64
+    const val MAX_EXIF_ORIENTATION = 8
+    const val DEBUG_HANG_MS = 30000L
     const val MAX_REPLY_BYTES = 4096
     const val STAGING_CHUNK_BYTES = 16 * 1024
 
@@ -59,3 +63,9 @@ internal data class ImageInspection(
     val mime: String,
     val orientation: Int,
 )
+
+/** Android rejects hyphens; unsigned generations also remain valid after the signed counter wraps. */
+internal fun workerInstanceName(
+    lane: String,
+    generation: Int,
+): String = "${lane}_${Integer.toUnsignedString(generation)}"

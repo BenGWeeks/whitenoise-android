@@ -25,4 +25,25 @@ class MediaDecodePolicyTest {
         assertFalse(MediaDecodePolicy.sourceAllowed(32768, 32768))
         assertFalse(MediaDecodePolicy.sourceAllowed(-1, 1))
     }
+
+    @Test
+    fun workerNamesStayValidAcrossGenerationWrapAndDistinctLanes() {
+        val names =
+            listOf(
+                workerInstanceName("images", 1),
+                workerInstanceName("media", 1),
+                workerInstanceName("images", Int.MIN_VALUE),
+            )
+        assertEquals(3, names.toSet().size)
+        names.forEach { assertTrue(it.matches(Regex("[A-Za-z0-9_.]+"))) }
+    }
+
+    @Test
+    fun descriptorRangesRejectOverflowAndEscapeFromTheSelectedFile() {
+        assertTrue(validMediaRange(100, 10, 90))
+        assertFalse(validMediaRange(100, 10, 91))
+        assertFalse(validMediaRange(100, -1, 1))
+        assertFalse(validMediaRange(Long.MAX_VALUE, Long.MAX_VALUE, Long.MAX_VALUE))
+        assertFalse(validMediaRange(-1, 0, 1))
+    }
 }

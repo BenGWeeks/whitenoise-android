@@ -174,7 +174,7 @@ on:
 # Cancel superseded runs on the same ref so a force-push or rapid re-push does
 # not pile up redundant (and expensive) emulator runs.
 concurrency:
-  group: ${{ github.event_name == 'workflow_dispatch' && inputs.maestro_pilot && !inputs.responsiveness_only && 'android-maestro-pilot' || format('android-instrumented-{0}-{1}-{2}', github.workflow, github.ref, inputs.responsiveness_only && 'responsiveness' || 'standard') }}
+  group: ${{ github.event_name == 'workflow_dispatch' && inputs.maestro_pilot && !inputs.media_sandbox_only && !inputs.responsiveness_only && 'android-maestro-pilot' || format('android-instrumented-{0}-{1}-{2}', github.workflow, github.ref, inputs.responsiveness_only && 'responsiveness' || 'standard') }}
   cancel-in-progress: ${{ !(github.event_name == 'workflow_dispatch' && inputs.maestro_pilot) }}
 
 permissions:
@@ -206,7 +206,7 @@ jobs:
 
   attachment-fixture:
     needs: changes
-    if: needs.changes.outputs.attachment_fixture == 'true' && !inputs.media_sandbox_only && (github.event_name != 'workflow_dispatch' || (!inputs.maestro_pilot && !inputs.responsiveness_only))
+    if: needs.changes.outputs.attachment_fixture == 'true' && !inputs.media_sandbox_only && (github.event_name != 'workflow_dispatch' || (!inputs.maestro_pilot && !inputs.media_sandbox_only && !inputs.responsiveness_only))
     name: Controlled attachment fixture (${{ matrix.distribution }})
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -261,7 +261,7 @@ jobs:
 
   instrumented:
     needs: changes
-    if: needs.changes.outputs.connected == 'true' && (github.event_name != 'workflow_dispatch' || !inputs.maestro_pilot || inputs.responsiveness_only)
+    if: needs.changes.outputs.connected == 'true' && (github.event_name != 'workflow_dispatch' || !inputs.maestro_pilot || inputs.responsiveness_only || inputs.media_sandbox_only)
     name: Connected Android tests (emulator)
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -313,6 +313,12 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
+      - name: Reject incompatible focused decoder inputs
+        if: inputs.media_sandbox_only && (inputs.maestro_pilot || inputs.responsiveness_only || inputs.review_demo_e2e || inputs.document_provider_matrix)
+        run: |
+          echo "Select one focused instrumented suite per dispatch" >&2
+          exit 2
+
       - name: Run connected Android tests
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2
         with:
@@ -352,7 +358,7 @@ jobs:
 
   maestro-pilot:
     name: Optional Maestro onboarding pilot
-    if: github.event_name == 'workflow_dispatch' && inputs.maestro_pilot && !inputs.responsiveness_only && !startsWith(inputs.maestro_suite, 'runtime-')
+    if: github.event_name == 'workflow_dispatch' && inputs.maestro_pilot && !inputs.media_sandbox_only && !inputs.responsiveness_only && !startsWith(inputs.maestro_suite, 'runtime-')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -463,7 +469,7 @@ jobs:
 
   maestro-runtime-build:
     name: Build isolated Maestro fixture pair
-    if: github.event_name == 'workflow_dispatch' && inputs.maestro_pilot && !inputs.responsiveness_only && startsWith(inputs.maestro_suite, 'runtime-')
+    if: github.event_name == 'workflow_dispatch' && inputs.maestro_pilot && !inputs.media_sandbox_only && !inputs.responsiveness_only && startsWith(inputs.maestro_suite, 'runtime-')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     outputs:
@@ -651,7 +657,7 @@ jobs:
 
   maestro-runtime-summary:
     name: Reconcile every selected Maestro runtime case
-    if: always() && github.event_name == 'workflow_dispatch' && inputs.maestro_pilot && !inputs.responsiveness_only && startsWith(inputs.maestro_suite, 'runtime-')
+    if: always() && github.event_name == 'workflow_dispatch' && inputs.maestro_pilot && !inputs.media_sandbox_only && !inputs.responsiveness_only && startsWith(inputs.maestro_suite, 'runtime-')
     needs: [maestro-runtime-build, maestro-runtime]
     runs-on: ubuntu-latest
     timeout-minutes: 5
