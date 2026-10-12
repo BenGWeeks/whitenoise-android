@@ -56,3 +56,7 @@ the worker's encoded output. Restored video sources outside file/content schemes
 are refused before player construction and use the existing filename preview.
 Instrumentation artifacts are labelled with the built checkout SHA: a PR-triggered
 run normally tests its merge revision, while a branch dispatch tests that branch.
+
+Unavailable EXIF replies remain unknown. Original-quality and animated metadata
+preparation refuse that operation instead of stripping orientation under an
+unconfirmed upright assumption. A later healthy request may retry normally.

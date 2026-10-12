@@ -71,6 +71,17 @@ internal data class PhotoEditorMessages(
     val budgetExceeded: String = saveFailed,
 )
 
+/** Preserve the previous attachment while explaining a typed local processing refusal. */
+internal fun photoEditorSaveFailureMessage(
+    result: PhotoEditorCommitResult,
+    messages: PhotoEditorMessages,
+): String =
+    if (result is PhotoEditorCommitResult.RenderFailed && result.result == PhotoEditorRenderResult.MemoryLimit) {
+        messages.budgetExceeded
+    } else {
+        messages.saveFailed
+    }
+
 internal data class ActivePhotoEditor(
     val slot: PendingMediaSlot,
     val photo: DraftBackedPhoto,
@@ -321,15 +332,7 @@ internal class ConversationMediaDraftState(
                         )
                     dismissEditor(editor)
                 }
-                is PhotoEditorCommitResult.RenderFailed ->
-                    editor.stateHolder.finishSaving(
-                        if (result.result == PhotoEditorRenderResult.MemoryLimit) {
-                            messages.budgetExceeded
-                        } else {
-                            messages.saveFailed
-                        },
-                    )
-                else -> editor.stateHolder.finishSaving(messages.saveFailed)
+                else -> editor.stateHolder.finishSaving(photoEditorSaveFailureMessage(result, messages))
             }
         }
     }

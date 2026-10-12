@@ -697,9 +697,9 @@ object MediaPipeline {
         return buffer.toByteArray()
     }
 
-    internal fun readExifOrientation(bytes: ByteArray): Int =
+    internal fun readExifOrientation(bytes: ByteArray): Int? =
         dev.ipf.whitenoise.android.media.sandbox.IsolatedMediaDecoder
-            .exif(bytes) ?: EXIF_ORIENTATION_NORMAL
+            .exif(bytes)
 
     internal fun readExifOrientationInDecoder(bytes: ByteArray): Int =
         try {
@@ -825,7 +825,8 @@ object MediaPipeline {
         // Orientation=Rotate90/270, stripping APP1 would make "Original"
         // sends display sideways. Fall back to the JPEG privacy path so the
         // orientation is baked into pixels while still dropping metadata.
-        if (exifOrientationRequiresPixelTransform(readExifOrientation(sourceBytes))) {
+        val orientation = readExifOrientation(sourceBytes) ?: return OriginalImageReadResult.Failed
+        if (exifOrientationRequiresPixelTransform(orientation)) {
             return OriginalImageReadResult.Unsupported
         }
         val stripped = stripOriginalImageMetadata(sourceBytes) ?: return OriginalImageReadResult.Unsupported
@@ -857,7 +858,8 @@ object MediaPipeline {
     @Suppress("ReturnCount") // Every guard fails closed before provider bytes can become an attachment.
     internal fun sanitizeAnimatedImageMetadata(bytes: ByteArray): ByteArray? {
         if (imageAnimationStatus(bytes) != ImageAnimationStatus.ANIMATED) return null
-        if (exifOrientationRequiresPixelTransform(readExifOrientation(bytes))) return null
+        val orientation = readExifOrientation(bytes) ?: return null
+        if (exifOrientationRequiresPixelTransform(orientation)) return null
         val sanitized =
             when (imageContainerKind(bytes)) {
                 ImageContainerKind.Gif -> stripGifMetadata(bytes)

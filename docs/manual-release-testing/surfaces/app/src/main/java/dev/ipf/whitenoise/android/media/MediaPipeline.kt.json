@@ -18,6 +18,14 @@
         "test_ids": [
           "MED-031"
         ]
+      },
+      {
+        "surface": "Unavailable orientation refuses metadata stripping",
+        "source": "app/src/main/java/dev/ipf/whitenoise/android/media/MediaPipeline.kt",
+        "anchor": "val orientation = readExifOrientation(sourceBytes) ?: return OriginalImageReadResult.Failed",
+        "test_ids": [
+          "MED-031"
+        ]
       }
     ]
   },

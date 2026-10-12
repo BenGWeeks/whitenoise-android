@@ -2,8 +2,10 @@ package dev.ipf.whitenoise.android.media.sandbox
 
 import android.graphics.Bitmap
 import android.graphics.Color
+import dev.ipf.whitenoise.android.media.MediaPipeline
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -13,6 +15,50 @@ import java.io.ByteArrayOutputStream
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class MediaDecodeBoundaryTest {
+    @Test
+    fun unavailableExifDoesNotAuthorizeMetadataStrippingAndCanRetry() {
+        val source = png()
+        val gif =
+            java.util.Base64
+                .getDecoder()
+                .decode("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7")
+        var orientation: Int? = null
+        var downstreamCalls = 0
+        IsolatedMediaDecoder.installTestTransport(
+            object : MediaDecodeTransport by TestMediaDecodeTransport {
+                override fun exif(bytes: ByteArray): Int? = orientation
+
+                override fun inspect(bytes: ByteArray): ImageInspection? {
+                    downstreamCalls += 1
+                    return null
+                }
+
+                override fun decode(
+                    bytes: ByteArray,
+                    edge: Int,
+                    oriented: Boolean,
+                    operation: Int,
+                ): Bitmap? {
+                    downstreamCalls += 1
+                    return null
+                }
+            },
+        )
+        try {
+            assertNull(MediaPipeline.readExifOrientation(source))
+            assertEquals(MediaPipeline.OriginalImageReadResult.Failed, MediaPipeline.prepareOriginalImageForUpload(source, "photo.png"))
+            assertNull(MediaPipeline.sanitizeAnimatedImageMetadata(gif))
+            orientation = MediaPipeline.EXIF_ORIENTATION_ROTATE_90
+            assertEquals(MediaPipeline.OriginalImageReadResult.Unsupported, MediaPipeline.prepareOriginalImageForUpload(source, "photo.png"))
+            assertNull(MediaPipeline.sanitizeAnimatedImageMetadata(gif))
+            assertEquals(0, downstreamCalls)
+            IsolatedMediaDecoder.installTestTransport(TestMediaDecodeTransport)
+            assertTrue(MediaPipeline.prepareOriginalImageForUpload(source, "photo.png") is MediaPipeline.OriginalImageReadResult.Success)
+        } finally {
+            IsolatedMediaDecoder.installTestTransport(TestMediaDecodeTransport)
+        }
+    }
+
     @Test
     fun missingTransportFailsClosedWithoutCallingLocalCodec() {
         IsolatedMediaDecoder.installTestTransport(null)
