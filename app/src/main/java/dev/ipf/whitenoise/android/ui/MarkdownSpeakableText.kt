@@ -369,7 +369,7 @@ private fun MappedTextBuilder.appendSpeakableInlines(
                     append(collector.visibleLeaf(inline.url, inlinePath, maxChars - length))
                 }
             is MarkdownInlineFfi.Timestamp ->
-                append(collector.visibleLeaf(markdownTimestampLiteral(inline), inlinePath, maxChars - length))
+                append(collector.visibleLeaf(inline.localLabel(), inlinePath, maxChars - length))
             is MarkdownInlineFfi.Math ->
                 append(collector.visibleLeaf(inline.content, inlinePath, maxChars - length))
             is MarkdownInlineFfi.NostrMention ->
