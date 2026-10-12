@@ -90,7 +90,13 @@ class ComposerDictationControlTest {
         now += 500L
         restarts.last().invoke()
         controller.send()
-        platform.listener.onError(ConversationDictationFailure.NoMatch)
+        repeat(3) {
+            platform.listener.onError(ConversationDictationFailure.NoMatch)
+            if (controller.state is ConversationDictationState.Starting) {
+                now += 500L
+                restarts.last().invoke()
+            }
+        }
         assertTrue(controller.state is ConversationDictationState.Idle)
         assertTrue(controller.hasParkedComposerAudio(ACCOUNT, GROUP))
         assertEquals("Recognized prefix", draft.text)
@@ -100,7 +106,8 @@ class ComposerDictationControlTest {
         composeRule.onNodeWithContentDescription("Send").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Retry Send").assertDoesNotExist()
         composeRule.onNodeWithTag(APP_DICTATION_CONTROL_TAG).assertDoesNotExist()
-        composeRule.onNodeWithTag("dictation-recovery-status").assertIsDisplayed()
+        composeRule.onNodeWithTag("dictation-recovery-status").assertDoesNotExist()
+        composeRule.onNodeWithTag("dictation-recovery-panel").assertDoesNotExist()
     }
 
     @Test
