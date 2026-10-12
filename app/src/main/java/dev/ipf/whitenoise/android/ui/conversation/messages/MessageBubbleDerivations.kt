@@ -17,12 +17,12 @@ import kotlinx.coroutines.CoroutineScope
 // bytecode. Keeping them here holds MessageBubble below ART's per-method compile limit (#3150).
 
 /**
- * The body text a bubble shows: its tombstone or invalidation notice, the latest kind-9 edit, else the projected or
- * raw message body.
+ * The body text a bubble shows: its tombstone or invalidation notice, the latest edit of a kind-9 chat, else the
+ * projected or raw message body.
  *
  * The projection path receives the deleted and invalidated copy, while the raw fallback keeps the caller's copy.
  */
-@Suppress("LongParameterList") // Each input is a remember key or a resolved string of the calling bubble.
+@Suppress("LongParameterList") // Each input is supplied by the calling bubble's remember block.
 internal fun messageBubbleDisplayedBody(
     item: TimelineMessage,
     deleted: Boolean,
@@ -39,8 +39,8 @@ internal fun messageBubbleDisplayedBody(
         persistedFailure -> invalidatedBodyText
         // Edit overlay wins over both projected and raw plaintext.
         // We don't go through MessageProjector here — the edit
-        // payload is plain text by spec; markdown re-parse will
-        // happen below if record.contentTokens is populated, but
+        // payload is plain text by spec; MessageBubble re-parses
+        // markdown when record.contentTokens is populated, but
         // for kind-9 edits the body is the latest version verbatim.
         editState != null && item.record.kind == CHAT_MESSAGE_KIND -> editState.latestText
         item.projected != null ->
@@ -55,10 +55,12 @@ internal fun messageBubbleDisplayedBody(
     }
 
 /**
- * Whether a bubble can be forwarded and, when it cannot, why: removed or failed messages are unsupported, an
- * unconfirmed send waits for its attachment, and a settled message defers to the projector with its cached media.
+ * Whether a bubble can be forwarded and, when it cannot, why. A deleted, invalidated or failed committed message is
+ * unsupported, a failed send that still carries pending media is a failed attachment, and an unconfirmed send is a
+ * pending attachment when it carries pending media and unsupported otherwise. A sent or received message defers to
+ * the projector with its cached attachments.
  */
-@Suppress("LongParameterList") // Each input is a remember key of the calling bubble.
+@Suppress("LongParameterList") // Each input is supplied by the calling bubble's remember block.
 internal fun messageBubbleForwardEligibility(
     item: TimelineMessage,
     editState: EditState?,
