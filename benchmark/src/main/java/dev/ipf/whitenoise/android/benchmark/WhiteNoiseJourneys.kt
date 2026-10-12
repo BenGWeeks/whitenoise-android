@@ -3,6 +3,7 @@ package dev.ipf.whitenoise.android.benchmark
 import android.content.ComponentName
 import android.content.Intent
 import android.graphics.Rect
+import android.os.Process
 import android.os.SystemClock
 import android.os.Trace
 import android.util.Log
@@ -20,9 +21,11 @@ internal data class NotificationRouteSample(
     val durationMs: Long,
     val transcriptVisible: Boolean,
     val expectedConversationVisible: Boolean,
+    /** Loading or chat-list surfaces the root drew before the conversation, from its own frame markers. */
+    val intermediateSurfaces: List<String> = emptyList(),
 ) {
     val succeeded: Boolean
-        get() = transcriptVisible && expectedConversationVisible
+        get() = transcriptVisible && expectedConversationVisible && intermediateSurfaces.isEmpty()
 }
 
 internal data class ConversationSettingsLaunchSample(
@@ -45,6 +48,7 @@ internal enum class BenchmarkDeliveryMode(
 
 internal class WhiteNoiseJourneys {
     private val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
+    private var surfaceLogMarker: String? = null
 
     /** Initializes the real fixture before Macrobenchmark resets compilation and starts tracing. */
     fun prepareAuthenticatedChatList() {
@@ -430,6 +434,31 @@ internal class WhiteNoiseJourneys {
         waitForTag(PerformanceTags.OPEN_GROUP_DETAILS, NETWORK_STATE_TIMEOUT_MS)
     }
 
+    /**
+     * Waits until one fixture notification is posted, announcing readiness first. Delivery is per iteration because
+     * a pre-delivered batch cannot survive: starting an instrumentation force-stops the app and removes its cards,
+     * and every later app launch republishes the dynamic shortcuts, which makes Android delete the conversation
+     * channels that back any other pending card. The host delivers sample [index] after the readiness marker in
+     * logcat, once this iteration's setup has left the device at Home, and this returns when the shade holds it.
+     */
+    fun awaitFixtureNotification(
+        text: String,
+        index: Int,
+        total: Int,
+        timeoutMs: Long = FIXTURE_DELIVERY_TIMEOUT_MS,
+    ) {
+        Log.i(FIXTURE_LOG_TAG, "fixture_delivery_ready index=$index total=$total")
+        val deadline = SystemClock.elapsedRealtime() + timeoutMs
+        while (SystemClock.elapsedRealtime() < deadline) {
+            if (device.executeShellCommand("dumpsys notification --noredact").contains(text)) {
+                Log.i(FIXTURE_LOG_TAG, "fixture_delivery_complete index=$index")
+                return
+            }
+            SystemClock.sleep(FIXTURE_POLL_INTERVAL_MS)
+        }
+        error("Fixture notification $index of $total never arrived within ${timeoutMs}ms of the readiness marker.")
+    }
+
     /** Restores the same non-target account before every notification sample. */
     fun activateNotificationSourceAccount(accountRef: String) {
         val otherAccountAvatarTag = "other-account-avatar-$accountRef"
@@ -452,7 +481,8 @@ internal class WhiteNoiseJourneys {
         expectedConversationTitle: String,
     ): NotificationRouteSample {
         device.openNotification()
-        val notification = waitForText(notificationText)
+        val notification = waitForNotificationCard(notificationText)
+        markRenderedSurfaceLog()
         val intentDeliveryApproximationMs = SystemClock.elapsedRealtime()
         notification.click()
         val diagnosticDeadlineMs = intentDeliveryApproximationMs + NOTIFICATION_ROUTE_DIAGNOSTIC_TIMEOUT_MS
@@ -476,7 +506,97 @@ internal class WhiteNoiseJourneys {
             durationMs = durationMs,
             transcriptVisible = transcript != null,
             expectedConversationVisible = expectedConversation != null,
+            intermediateSurfaces = RenderedSurfaceLog.intermediateBeforeConversation(readRenderedSurfaceLog()),
         )
+    }
+
+    /**
+     * Drops a unique marker line into the device log so [readRenderedSurfaceLog] reads only the surfaces
+     * this tap caused. It never clears the device-wide buffers, which other diagnostics still need.
+     */
+    fun markRenderedSurfaceLog() {
+        val marker = "route-sample-${SystemClock.elapsedRealtimeNanos()}"
+        device.executeShellCommand("log -t $SURFACE_MARKER_TAG -p i $marker")
+        surfaceLogMarker = marker
+    }
+
+    /** The app's rendered-surface markers after the last [markRenderedSurfaceLog], as the root recorded them. */
+    fun readRenderedSurfaceLog(): String {
+        val marker = checkNotNull(surfaceLogMarker) { "Mark the surface log before the tap that it should read." }
+        val lines = device.executeShellCommand("logcat -d -s WNWarmResume:I $SURFACE_MARKER_TAG:I").lines()
+        val markerLine = lines.indexOfLast { it.contains(marker) }
+        check(markerLine >= 0) { "The surface log marker was lost, so the sample cannot be attributed to its tap." }
+        return lines.drop(markerLine + 1).joinToString("\n")
+    }
+
+    /** Restores the non-target account and leaves the device home, as the warm journey does before each sample. */
+    fun prepareSourceAccountAtHome() {
+        val sourceAccountRef =
+            BenchmarkConfig.requireFixture(BenchmarkConfig.notificationSourceAccountRef, "notificationSourceAccountRef")
+        returnToChatList()
+        activateNotificationSourceAccount(sourceAccountRef)
+        device.pressHome()
+        device.waitForIdle()
+    }
+
+    /**
+     * Ends the app process the way the system does when it reclaims a cached app, then leaves the device
+     * home, so the next tap starts a new process. `am force-stop` is not used: it cancels the app's
+     * PendingIntents and removes its notifications, so there would be nothing left to tap. `am kill` keeps
+     * both and may be refused until the backgrounded process becomes killable, hence the bounded retry.
+     */
+    fun killAppAndGoHome() {
+        check(device.pressHome()) { "Failed to return home before a cold-process notification tap." }
+        device.waitForIdle()
+        val user = Process.myUid() / ANDROID_PER_USER_UID_RANGE
+        val deadline = SystemClock.elapsedRealtime() + PROCESS_EXIT_TIMEOUT_MS
+        while (appProcessId(user) != null && SystemClock.elapsedRealtime() < deadline) {
+            device.executeShellCommand("am kill --user $user ${BenchmarkConfig.TARGET_PACKAGE}")
+            SystemClock.sleep(PROCESS_KILL_RETRY_MS)
+        }
+        check(appProcessId(user) == null) { "Ordinary process death did not end the app, so the next tap would not be cold." }
+    }
+
+    /** The main app process of Android [user], or null when it is not running. */
+    private fun appProcessId(user: Int): Int? =
+        device
+            .executeShellCommand("ps -A -o UID,PID,NAME")
+            .lineSequence()
+            .map { it.trim().split(Regex("\\s+")) }
+            .firstOrNull { fields ->
+                fields.size == 3 &&
+                    fields[2] == BenchmarkConfig.TARGET_PACKAGE &&
+                    fields[0].toIntOrNull()?.div(ANDROID_PER_USER_UID_RANGE) == user
+            }?.get(1)
+            ?.toIntOrNull()
+
+    /** Taps a fresh notification and reports when the app lock surface, not any content, first appears. */
+    fun openNotificationToAppLock(notificationText: String): Long {
+        device.openNotification()
+        val notification = waitForNotificationCard(notificationText)
+        val tapMs = SystemClock.elapsedRealtime()
+        notification.click()
+        device.onElementOrNull(timeoutMs = NOTIFICATION_ROUTE_DIAGNOSTIC_TIMEOUT_MS) {
+            textAsString() == APP_LOCKED_TITLE
+        } ?: error("The app lock surface never appeared after the notification tap.")
+        return SystemClock.elapsedRealtime() - tapMs
+    }
+
+    /** Runs the host-provided unlock, then reports when the first readable conversation frame appears. */
+    fun unlockToConversation(
+        unlockCommand: String,
+        expectedConversationTitle: String,
+    ): Long {
+        val unlockMs = SystemClock.elapsedRealtime()
+        device.executeShellCommand(unlockCommand)
+        val transcript = findVisibleTag(PerformanceTags.CONVERSATION_TRANSCRIPT_VISIBLE, NOTIFICATION_ROUTE_DIAGNOSTIC_TIMEOUT_MS)
+        checkNotNull(transcript) { "No readable transcript appeared after unlock." }
+        val title =
+            device.onElementOrNull(timeoutMs = NAVIGATION_SETTLE_TIMEOUT_MS) {
+                textAsString() == expectedConversationTitle && isVisibleOnDisplay()
+            }
+        checkNotNull(title) { "The unlocked route opened the wrong conversation." }
+        return SystemClock.elapsedRealtime() - unlockMs
     }
 
     /** Unwinds only White Noise routes until the authenticated chat list is visible. */
@@ -735,8 +855,100 @@ internal class WhiteNoiseJourneys {
         timeoutMs: Long = DEFAULT_TIMEOUT_MS,
     ): UiObject2 =
         checkNotNull(device.onElementOrNull(timeoutMs = timeoutMs) { textAsString() == text }) {
-            "Timed out waiting for fixture row '$text'."
+            "Timed out waiting for fixture row '$text'. Foreground package: ${device.currentPackageName ?: "unknown"}. " +
+                "Visible text: ${visibleText()}."
         }
+
+    /**
+     * Finds one fixture card in the open shade. The system bundles an app's cards, so with several notifications
+     * only the newest and a few children are on screen, and a bundle dissolves as cards are consumed. Each pass
+     * reopens a shade that closed, expands a bundle that is still collapsed, and scrolls only while content remains
+     * below, because a swipe on a list that already fits would close the shade. The search runs before the tap,
+     * so none of it counts toward a route measurement.
+     */
+    private fun waitForNotificationCard(
+        text: String,
+        timeoutMs: Long = NOTIFICATION_SEARCH_TIMEOUT_MS,
+    ): UiObject2 {
+        val deadline = SystemClock.elapsedRealtime() + timeoutMs
+        var scrolls = 0
+        var reopened = 0
+        while (SystemClock.elapsedRealtime() < deadline) {
+            device.onElementOrNull(timeoutMs = NOTIFICATION_PROBE_TIMEOUT_MS) { textAsString() == text }?.let { return it }
+            when {
+                device.currentPackageName != SYSTEM_UI_PACKAGE -> {
+                    device.openNotification()
+                    reopened += 1
+                }
+                expandAppBundle() -> Unit
+                shadeEndVisible() || scrolls >= MAX_SHADE_SCROLLS -> break
+                else -> {
+                    // Starts mid-screen and stays clear of the bottom edge, which would close the shade.
+                    val x = device.displayWidth / 2
+                    check(device.swipe(x, device.displayHeight * 3 / 5, x, device.displayHeight * 2 / 5, SHADE_SCROLL_STEPS)) {
+                        "The notification shade did not accept a scroll while looking for '$text'."
+                    }
+                    scrolls += 1
+                }
+            }
+        }
+        error(
+            "Timed out waiting for fixture row '$text' after $scrolls scrolls and $reopened reopens of the shade. " +
+                "Foreground package: ${device.currentPackageName ?: "unknown"}. Visible text: ${visibleText()}.",
+        )
+    }
+
+    /** True once the shade's footer is on screen, which means nothing remains to scroll to. */
+    private fun shadeEndVisible(): Boolean {
+        val footer = device.onElementOrNull(timeoutMs = NOTIFICATION_PROBE_TIMEOUT_MS) { viewIdResourceName == SHADE_FOOTER_ID }
+        return footer != null
+    }
+
+    /**
+     * Expands the app's bundle of cards by its header's own chevron, when one is still collapsed. The newest card
+     * has a chevron of its own, so the bundle's is the one in the header row, found by the app name beside it.
+     * True when a chevron was tapped.
+     */
+    private fun expandAppBundle(): Boolean {
+        val header =
+            device.onElementOrNull(timeoutMs = NOTIFICATION_PROBE_TIMEOUT_MS) {
+                viewIdResourceName == SHADE_APP_NAME_ID && textAsString()?.startsWith(BUNDLE_APP_NAME_PREFIX) == true
+            } ?: return false
+        val headerY = header.visibleCenter.y
+        val chevron =
+            device.onElementOrNull(timeoutMs = NOTIFICATION_PROBE_TIMEOUT_MS) {
+                val bounds = Rect().also(::getBoundsInScreen)
+                viewIdResourceName == SHADE_EXPAND_BUTTON_ID &&
+                    contentDescription?.toString() == "Expand" &&
+                    kotlin.math.abs(bounds.centerY() - headerY) <= SHADE_HEADER_ROW_TOLERANCE_PX
+            } ?: return false
+        chevron.click()
+        return true
+    }
+
+    /** The text currently on screen across every window, bounded so a failure report stays readable. */
+    private fun visibleText(): String {
+        val texts = linkedSetOf<String>()
+        InstrumentationRegistry
+            .getInstrumentation()
+            .uiAutomation
+            .windows
+            .mapNotNull(AccessibilityWindowInfo::getRoot)
+            .forEach { root -> collectVisibleText(root, texts) }
+        return texts.take(MAX_REPORTED_TEXTS).joinToString(" | ").ifEmpty { "none" }
+    }
+
+    /** Adds the non-blank text of [node] and every descendant to [destination], keeping first-seen order. */
+    private fun collectVisibleText(
+        node: AccessibilityNodeInfo,
+        destination: MutableSet<String>,
+    ) {
+        val text = node.text?.toString()
+        if (!text.isNullOrBlank()) destination.add(text)
+        repeat(node.childCount) { index ->
+            node.getChild(index)?.let { child -> collectVisibleText(child, destination) }
+        }
+    }
 
     private fun waitForEditableText(expectedText: String? = null): UiObject2 =
         checkNotNull(
@@ -872,6 +1084,25 @@ internal class WhiteNoiseJourneys {
         const val NETWORK_STATE_TIMEOUT_MS = 45_000L
         const val NOTIFICATION_ROUTE_TIMEOUT_MS = 10_000L
         const val NOTIFICATION_ROUTE_DIAGNOSTIC_TIMEOUT_MS = 15_000L
+        const val FIXTURE_DELIVERY_TIMEOUT_MS = 300_000L
+        const val FIXTURE_POLL_INTERVAL_MS = 2_000L
+        const val FIXTURE_LOG_TAG = "NotificationRouteBenchmark"
+        const val MAX_REPORTED_TEXTS = 40
+        const val NOTIFICATION_SEARCH_TIMEOUT_MS = 45_000L
+        const val NOTIFICATION_PROBE_TIMEOUT_MS = 600L
+        const val MAX_SHADE_SCROLLS = 40
+        const val SHADE_SCROLL_STEPS = 12
+        const val SHADE_EXPAND_BUTTON_ID = "android:id/expand_button"
+        const val SHADE_APP_NAME_ID = "android:id/app_name_text"
+        const val BUNDLE_APP_NAME_PREFIX = "White Noise"
+        const val SHADE_HEADER_ROW_TOLERANCE_PX = 60
+        const val SHADE_FOOTER_ID = "com.android.systemui:id/dismiss_text"
+        const val SYSTEM_UI_PACKAGE = "com.android.systemui"
+        const val PROCESS_EXIT_TIMEOUT_MS = 5_000L
+        const val PROCESS_KILL_RETRY_MS = 50L
+        const val ANDROID_PER_USER_UID_RANGE = 100_000
+        const val SURFACE_MARKER_TAG = "WNBenchMarker"
+        const val APP_LOCKED_TITLE = "White Noise is locked"
         const val SETTINGS_SCROLL_STEPS = 12
         const val MAX_CHAT_LIST_UNWIND_STEPS = 6
         const val NAVIGATION_SETTLE_TIMEOUT_MS = 2_000L
