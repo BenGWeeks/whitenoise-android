@@ -92,12 +92,14 @@ internal class ConversationDictationAudioChunkBuffer(
 
     /** Holds the newest boundary until a useful successor exists or capture finishes. */
     @Synchronized
-    fun poll(): ConversationDictationAudioChunk? =
-        if (inFlight.isNotEmpty() || (!finished && queued.size == 1 && currentSize < minimumTailBytes)) {
+    fun poll(): ConversationDictationAudioChunk? {
+        val boundaryHeld = !finished && queued.size == 1 && currentSize < minimumTailBytes
+        return if (inFlight.isNotEmpty() || boundaryHeld) {
             null
         } else {
             queued.pollFirst()?.also { chunk -> inFlight[chunk.chunkId] = chunk }
         }
+    }
 
     /** A final chunk is proven only after capture seals and no later PCM can extend its input. */
     @Synchronized
