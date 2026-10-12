@@ -40,6 +40,7 @@ import dev.ipf.whitenoise.android.state.ConversationWindowUnchangedReason
 import dev.ipf.whitenoise.android.state.MessageAvailability
 import dev.ipf.whitenoise.android.state.ScriptedConversationLiveSubscriptions
 import dev.ipf.whitenoise.android.state.ScriptedConversationTimelineSubscription
+import dev.ipf.whitenoise.android.state.TimelineMessage
 import dev.ipf.whitenoise.android.state.TimelinePageOutcome
 import dev.ipf.whitenoise.android.state.conversationTimelineTestAppState
 import dev.ipf.whitenoise.android.state.conversationTimelineTestGroup
