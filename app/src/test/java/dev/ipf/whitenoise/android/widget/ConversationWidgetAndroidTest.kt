@@ -1,9 +1,15 @@
 package dev.ipf.whitenoise.android.widget
 
+import android.app.KeyguardManager
+import android.appwidget.AppWidgetManager
+import android.appwidget.AppWidgetProvider
 import android.content.Context
 import android.widget.TextView
 import dev.ipf.whitenoise.android.R
 import dev.ipf.whitenoise.android.state.SecureStoreKeyProvider
+import dev.ipf.whitenoise.android.ui.share.emptyAppState
+import dev.ipf.whitenoise.android.ui.share.testAccount
+import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -13,6 +19,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
@@ -96,4 +103,46 @@ class ConversationWidgetAndroidTest {
             views.findViewById<TextView>(R.id.widget_row_subtitle).text.toString(),
         )
     }
+
+    @Test fun staleAccountSnapshotCannotEraseANewerChoiceOrRenderedRows() =
+        runBlocking {
+            val manager = AppWidgetManager.getInstance(context)
+            val host = shadowOf(manager)
+            val id = host.createWidget(AppWidgetProvider::class.java, R.layout.conversation_widget)
+            val store = ConversationWidgetConfiguration(context)
+            val choice = ConversationWidgetChoice("new-account")
+            assertTrue(store.save(id, choice))
+            val row = ConversationWidgetRow("new-account", "group", "Current conversation", true)
+            manager.updateAppWidget(id, conversationWidgetViews(context, id, listOf(row), choice))
+            val state =
+                emptyAppState(
+                    accounts = listOf(testAccount("new-account", "b".repeat(64))),
+                    activeAccountRef = "new-account",
+                )
+            val keyguard = context.getSystemService(KeyguardManager::class.java)
+            shadowOf(keyguard).setIsDeviceLocked(false)
+            assertTrue(widgetUnlocked(state, keyguard))
+            ConversationWidgets.refreshWidget(
+                context,
+                id,
+                ConversationWidgets.WidgetRefresh(
+                    manager,
+                    store,
+                    keyguard,
+                    state,
+                    setOf("old-account"),
+                    -1L,
+                    state.runtimeGeneration,
+                ),
+            )
+            assertEquals(choice, store.read(id))
+            assertEquals(
+                "Current conversation",
+                host
+                    .getViewFor(id)
+                    .findViewById<TextView>(R.id.widget_row_title)
+                    .text
+                    .toString(),
+            )
+        }
 }

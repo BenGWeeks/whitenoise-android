@@ -7,6 +7,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import androidx.annotation.VisibleForTesting
 import androidx.compose.runtime.snapshotFlow
 import androidx.core.content.ContextCompat
 import dev.ipf.marmotkit.ChatListViewFfi
@@ -134,11 +135,14 @@ internal object ConversationWidgets {
             null
         }
 
-    private suspend fun refreshWidget(
+    @VisibleForTesting
+    internal suspend fun refreshWidget(
         context: Context,
         id: Int,
         refresh: WidgetRefresh,
     ) {
+        // A newer account/configuration refresh owns both displayed rows and durable choice cleanup.
+        if (!refreshContextCurrent(refresh)) return
         val choice = refresh.store.read(id)
         if (choice == null || !canRefresh(id, choice, refresh)) {
             redactWidgets(context, refresh.manager, intArrayOf(id))
@@ -178,14 +182,19 @@ internal object ConversationWidgets {
         choice: ConversationWidgetChoice,
         refresh: WidgetRefresh,
     ): Boolean {
+        val sameChoice = refresh.store.read(id) == choice
+        return refreshContextCurrent(refresh) && sameChoice && widgetUnlocked(refresh.state, refresh.keyguard)
+    }
+
+    private fun refreshContextCurrent(refresh: WidgetRefresh): Boolean {
         val sameRuntime = refreshEpoch.get() == refresh.epoch && refresh.state?.runtimeGeneration == refresh.generation
         val sameAccounts =
-            refresh.state
-                ?.accounts
-                ?.map { it.label }
-                ?.toSet() == refresh.accounts
-        val sameChoice = refresh.store.read(id) == choice
-        return sameRuntime && sameAccounts && sameChoice && widgetUnlocked(refresh.state, refresh.keyguard)
+            refresh.accounts == null ||
+                refresh.state
+                    ?.accounts
+                    ?.map { it.label }
+                    ?.toSet() == refresh.accounts
+        return sameRuntime && sameAccounts
     }
 
     private suspend fun readWidgetRows(
@@ -203,7 +212,8 @@ internal object ConversationWidgets {
             null
         }
 
-    private data class WidgetRefresh(
+    @VisibleForTesting
+    internal data class WidgetRefresh(
         val manager: AppWidgetManager,
         val store: ConversationWidgetConfiguration,
         val keyguard: KeyguardManager?,
