@@ -234,9 +234,10 @@ private fun NostrEventReaderBody(
         preparation?.textChunks ?: remember(card.readerBody, card.summary) {
             nostrReaderTextChunks(card.readerBody ?: card.summary.orEmpty())
         }
-    val imageUrls = preparation?.imageUrls ?: remember(card.imageUrls, document) {
-        nostrEventImageCandidates(card.imageUrls, document)
-    }
+    val imageUrls =
+        preparation?.imageUrls ?: remember(card.imageUrls, document) {
+            nostrEventImageCandidates(card.imageUrls, document)
+        }
     WhiteNoiseLazyColumn(
         modifier = Modifier.fillMaxSize().testTag(NOSTR_EVENT_READER_BODY_TAG),
         contentPadding =

@@ -48,9 +48,10 @@ internal fun rememberNostrEventPreviewState(
             }
     }
     val document = prepared?.document
-    val imageUrls = remember(card?.imageUrls, prepared?.bodyImageUrls) {
-        nostrEventImageCandidates(card?.imageUrls.orEmpty() + prepared?.bodyImageUrls.orEmpty(), null)
-    }
+    val imageUrls =
+        remember(card?.imageUrls, prepared?.bodyImageUrls) {
+            nostrEventImageCandidates(card?.imageUrls.orEmpty() + prepared?.bodyImageUrls.orEmpty(), null)
+        }
     return when {
         card != null && prepared == null -> NostrEventCardState.Loaded(card.copy(summary = null, imageUrls = imageUrls))
         card != null && document != null && document.blocks.isNotEmpty() ->
