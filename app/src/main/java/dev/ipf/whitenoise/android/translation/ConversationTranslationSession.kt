@@ -67,20 +67,10 @@ internal class ConversationTranslationSession(
         return ownerCurrent() && !occupied && !paused
     }
 
-    private fun ownerAt(generation: Long): Boolean = generation == epoch && ownerCurrent()
-
     private suspend fun currentRequest(
         source: TranslationSource,
         generation: Long,
-    ): Boolean = ownerAt(generation) && pending[source] === currentCoroutineContext().job
-
-    private suspend fun recordFailure(
-        source: TranslationSource,
-        generation: Long,
-        reason: TranslationFailure,
-    ) {
-        if (currentRequest(source, generation)) failure = reason
-    }
+    ): Boolean = generation == epoch && ownerCurrent() && pending[source] === currentCoroutineContext().job
 
     private suspend fun publishRendition(
         source: TranslationSource,
@@ -105,16 +95,16 @@ internal class ConversationTranslationSession(
     ) {
         try {
             slots.withPermit {
-                if (!ownerAt(requestGeneration)) return@withPermit
+                if (requestGeneration != epoch || !ownerCurrent()) return@withPermit
                 val translated = translateWithPrivacyGate(engine(), source.text, from, source.target)
                 publishRendition(source, requestGeneration, translated)
             }
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: TranslationException) {
-            recordFailure(source, requestGeneration, error.failure)
+            if (currentRequest(source, requestGeneration)) failure = error.failure
         } catch (_: Exception) {
-            recordFailure(source, requestGeneration, TranslationFailure.CONNECTION)
+            if (currentRequest(source, requestGeneration)) failure = TranslationFailure.CONNECTION
         } finally {
             if (pending[source] === currentCoroutineContext().job) {
                 pending.remove(source)

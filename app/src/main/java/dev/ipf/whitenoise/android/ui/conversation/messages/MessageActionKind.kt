@@ -110,7 +110,10 @@ internal fun estimatedMessageActionMenuHeight(
 
 /** The menu row label for an action, matching the prototype's wording. */
 @Composable
-internal fun messageActionLabel(kind: MessageActionKind): String = stringResource(messageActionLabelResources.getValue(kind))
+internal fun messageActionLabel(kind: MessageActionKind): String =
+    stringResource(
+        messageActionLabelResources.getValue(kind),
+    )
 
 private val messageActionLabelResources =
     mapOf(

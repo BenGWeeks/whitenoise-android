@@ -36,7 +36,10 @@ internal class TextIntelligenceRequest(
         job =
             scope.launch {
                 try {
-                    val response = withTimeout(INTELLIGENCE_REQUEST_TIMEOUT_MS) { runTextIntelligence(provider, operation, input) }
+                    val response =
+                        withTimeout(INTELLIGENCE_REQUEST_TIMEOUT_MS) {
+                            runTextIntelligence(provider, operation, input)
+                        }
                     if (isCurrent(epoch)) result = response
                 } catch (_: TimeoutCancellationException) {
                     recordFailure(epoch, TextIntelligenceFailure.TIMEOUT)

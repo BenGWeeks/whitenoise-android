@@ -60,8 +60,12 @@ internal class LiteRtTextIntelligenceProvider(
             Engine(config).use { engine ->
                 engine.initialize()
                 engine
-                    .createConversation(ConversationConfig(automaticToolCalling = false, maxOutputToken = MAX_OUTPUT_TOKENS))
-                    .use { conversation ->
+                    .createConversation(
+                        ConversationConfig(
+                            automaticToolCalling = false,
+                            maxOutputToken = MAX_OUTPUT_TOKENS,
+                        ),
+                    ).use { conversation ->
                         val output = StringBuilder()
                         try {
                             val prompt = instruction(operation) + "\n\n" + text

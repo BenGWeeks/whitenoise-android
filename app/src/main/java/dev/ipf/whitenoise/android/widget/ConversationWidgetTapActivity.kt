@@ -58,7 +58,10 @@ class ConversationWidgetTapActivity : ComponentActivity() {
         request: WidgetTapRequest,
         state: WhiteNoiseAppState,
         keyguard: KeyguardManager?,
-    ): Boolean = widgetUnlocked(state, keyguard) && (request.choice.allAccounts || request.account == request.choice.account)
+    ): Boolean {
+        val configuredAccount = request.choice.allAccounts || request.account == request.choice.account
+        return widgetUnlocked(state, keyguard) && configuredAccount
+    }
 
     private suspend fun validateNativeTarget(
         request: WidgetTapRequest,

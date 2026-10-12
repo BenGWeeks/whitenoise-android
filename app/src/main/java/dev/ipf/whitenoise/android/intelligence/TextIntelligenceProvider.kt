@@ -49,7 +49,9 @@ internal suspend fun runTextIntelligence(
         throw TextIntelligenceException(it)
     }
     return provider.transform(operation, text).also {
-        if (it.isBlank() || it.length > MAX_INTELLIGENCE_OUTPUT) throw TextIntelligenceException(TextIntelligenceFailure.ENGINE)
+        if (it.isBlank() || it.length > MAX_INTELLIGENCE_OUTPUT) {
+            throw TextIntelligenceException(TextIntelligenceFailure.ENGINE)
+        }
     }
 }
 

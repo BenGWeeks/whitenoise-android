@@ -26,7 +26,7 @@ internal fun discoverOfflineTranslator(context: Context): VerifiedTranslationSer
     validateTranslatorPackage(info)
     val intent = Intent(OFFLINE_TRANSLATOR_ACTION).setPackage(OFFLINE_TRANSLATOR_PACKAGE)
     val service =
-        if (Build.VERSION.SDK_INT >= 33) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             manager.resolveService(intent, PackageManager.ResolveInfoFlags.of(0))?.serviceInfo
         } else {
             manager.resolveService(intent, 0)?.serviceInfo
@@ -43,7 +43,7 @@ internal fun discoverOfflineTranslator(context: Context): VerifiedTranslationSer
 
 private fun installedTranslatorPackage(manager: PackageManager): PackageInfo =
     try {
-        if (Build.VERSION.SDK_INT >= 33) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             manager.getPackageInfo(
                 OFFLINE_TRANSLATOR_PACKAGE,
                 PackageManager.PackageInfoFlags.of(PackageManager.GET_SIGNING_CERTIFICATES.toLong()),
