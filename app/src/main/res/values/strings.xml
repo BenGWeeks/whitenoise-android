@@ -62,6 +62,9 @@
          "White Noise Dev" for the launcher label, but the in-app brand stays
          "White Noise". Kept identical across locales (see LocalizationResourceTest). -->
     <string name="white_noise">White Noise</string>
+    <string name="startup_diagnostics_share">Share startup diagnostics</string>
+    <string name="startup_diagnostics_share_failed">Couldn\'t share startup diagnostics. Use Copy to send the error report.</string>
+    <string name="startup_diagnostics_share_notice">Includes startup stages, timings and build information. No messages or account details.</string>
     <string name="white_noise_couldnt_start">White Noise couldn\'t start</string>
     <string name="startup_taking_too_long">Startup is taking longer than expected. Please try again.</string>
     <string name="refresh">Refresh</string>
@@ -1414,6 +1417,12 @@
     <string name="media_download_queued">Queued for download</string>
     <string name="media_download_body_known">%1$s of %2$s</string>
     <string name="media_download_body_unknown">%1$s received</string>
+    <string name="media_upload_preparing_body">Preparing %1$s of %2$s</string>
+    <string name="media_upload_encrypting_body">Encrypting %1$s of %2$s</string>
+    <string name="media_upload_body_known">Uploading %1$s of %2$s</string>
+    <string name="media_upload_preparing">Preparing</string>
+    <string name="media_upload_encrypting">Encrypting</string>
+    <string name="media_upload_bytes">%1$s of %2$s</string>
     <string name="media_verifying_download">Verifying download</string>
     <string name="media_decrypting_download">Decrypting download</string>
     <string name="media_download_retry_scheduled">Waiting to retry</string>

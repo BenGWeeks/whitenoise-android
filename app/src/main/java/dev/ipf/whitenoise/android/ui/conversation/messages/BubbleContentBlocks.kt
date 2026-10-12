@@ -64,6 +64,7 @@ import dev.ipf.whitenoise.android.ui.TtsLeafHighlightResolver
 import dev.ipf.whitenoise.android.ui.TtsSentenceActions
 import dev.ipf.whitenoise.android.ui.TtsSentenceLayoutReporter
 import dev.ipf.whitenoise.android.ui.common.rememberedMessageBubbleTime
+import dev.ipf.whitenoise.android.ui.conversation.ConversationUiTrace
 import dev.ipf.whitenoise.android.ui.conversation.media.ConversationMediaViewerOpenRequest
 import dev.ipf.whitenoise.android.ui.conversation.media.GiphyMessageFooter
 import dev.ipf.whitenoise.android.ui.conversation.media.MediaFileBubble
@@ -75,6 +76,7 @@ import dev.ipf.whitenoise.android.ui.conversation.media.MediaVoiceBubble
 import dev.ipf.whitenoise.android.ui.conversation.media.RejectedAttachmentPlaceholder
 import dev.ipf.whitenoise.android.ui.conversation.media.RemoteGiphyMediaBubble
 import dev.ipf.whitenoise.android.ui.conversation.media.VoicePresentationAttachmentKey
+import dev.ipf.whitenoise.android.ui.conversation.media.rememberPendingUploadProgress
 import dev.ipf.whitenoise.android.ui.conversation.media.rememberVoicePresentationOwner
 import dev.ipf.whitenoise.android.ui.conversation.nostr.NostrEventCardResolver
 import dev.ipf.whitenoise.android.ui.conversation.nostr.NostrEventCards
@@ -86,6 +88,7 @@ import dev.ipf.whitenoise.android.ui.conversation.share.SharedUser
 import dev.ipf.whitenoise.android.ui.conversation.share.UserMessageBubble
 import dev.ipf.whitenoise.android.ui.conversation.share.VCARD_MIME_TYPE
 import dev.ipf.whitenoise.android.ui.conversation.share.formatCoordinate
+import dev.ipf.whitenoise.android.ui.conversation.traceConversationUiSection
 import dev.ipf.whitenoise.android.ui.icons.Icons
 import dev.ipf.whitenoise.android.ui.icons.filled.Close
 import dev.ipf.whitenoise.android.ui.icons.filled.Refresh
@@ -413,6 +416,8 @@ internal fun ColumnScope.BubbleMediaBlocks(
                 focusedPreview = focusedPreview,
             ) {
                 if (MediaReferenceSupport.isVideoMedia(entry.value)) {
+                    val uploadProgress =
+                        rememberPendingUploadProgress(controller, record.messageIdHex, active = !uploadFailed)
                     MediaVideoBubble(
                         item = item,
                         attachmentIndex = entry.index,
@@ -431,6 +436,7 @@ internal fun ColumnScope.BubbleMediaBlocks(
                         uploading = !uploadFailed,
                         uploadFailed = uploadFailed,
                         onRetryUpload = if (uploadFailed) retryUpload else null,
+                        uploadProgress = uploadProgress,
                     )
                 } else {
                     MediaImageBubble(
@@ -481,9 +487,16 @@ internal fun ColumnScope.BubbleMediaBlocks(
                 visualOwnsFooter = footerOnPendingVisual,
                 hasCaption = hasCaption,
             )
+        val uploadProgress =
+            rememberPendingUploadProgress(
+                controller,
+                record.messageIdHex,
+                active = item.status != MessageStatus.Failed,
+            )
         MediaPendingPlaceholder(
             pendingAttachments = controller.pendingAttachmentsList(record.messageIdHex),
             failed = item.status == MessageStatus.Failed,
+            uploadProgress = uploadProgress,
             timestampText = rememberedMessageBubbleTime(record.recordedAt).takeIf { pendingFileOwnsFooter },
             showStatus = pendingFileOwnsFooter && showStatus,
             status = item.status,
@@ -664,101 +677,105 @@ internal fun ColumnScope.BubbleBodyFooterAndRetry(
                     progress = ttsReadAloudProgress,
                     modifier = bodyMeasurementModifier,
                 ) {
-                    val mentionMemberSnapshot =
-                        remember(record.messageIdHex, controller.membersLoaded) {
-                            if (controller.membersLoaded) controller.members else null
-                        }
-                    val mentionMembershipResolver =
-                        remember(appState, mentionMemberSnapshot) {
-                            mentionMemberSnapshot?.let { members ->
-                                { bech32: String -> appState.isRosterMember(bech32, members) }
+                    traceConversationUiSection(ConversationUiTrace.TEXT) {
+                        val mentionMemberSnapshot =
+                            remember(record.messageIdHex, controller.membersLoaded) {
+                                if (controller.membersLoaded) controller.members else null
                             }
-                        }
-                    MarkdownMessageBody(
-                        checkNotNull(markdownDocument),
-                        mentionDisplayName =
-                            remember(appState, ttsMentionPresentation) {
-                                ttsMentionPresentation?.let { snapshot -> snapshot::displayName }
-                                    ?: { bech32: String -> appState.mentionDisplayName(bech32) }
-                            },
-                        isGroupMember =
-                            remember(ttsMentionPresentation, mentionMembershipResolver) {
-                                if (ttsMentionPresentation != null) {
-                                    ttsMentionPresentation.membershipResolver()
-                                } else {
-                                    mentionMembershipResolver
+                        val mentionMembershipResolver =
+                            remember(appState, mentionMemberSnapshot) {
+                                mentionMemberSnapshot?.let { members ->
+                                    { bech32: String -> appState.isRosterMember(bech32, members) }
                                 }
-                            },
-                        useDecorativeBackgrounds = !customBubbleColorActive,
-                        onNostrProfileTap =
-                            remember(appState) {
-                                { bech32: String -> appState.presentNostrProfile(bech32) }
-                            },
-                        onLastTextLayout = { lastLineLayout = it },
-                        onSelectableTextLayoutChanged = selectableTextLayoutReporter,
-                        onLinkTextLayoutChanged = markdownLinkLayoutReporter,
-                        onCopyLink = onCopyMarkdownLink,
-                        deferLinkActivation = deferMarkdownLinkActivation,
-                        ttsLeafHighlightResolver = presentedTtsLeafHighlightResolver,
-                        ttsSentenceActions =
-                            ttsSentenceActions.takeUnless {
-                                textSelectionMode ||
-                                    bodyIsCollapsed ||
-                                    bodyCollapsePending
-                            },
-                        ttsReadAloudHighlightStyle = highlightStyle,
-                        ttsSentenceLayoutReporter = presentedTtsSentenceLayoutReporter,
-                        searchHighlight = searchHighlight,
-                    )
+                            }
+                        MarkdownMessageBody(
+                            checkNotNull(markdownDocument),
+                            mentionDisplayName =
+                                remember(appState, ttsMentionPresentation) {
+                                    ttsMentionPresentation?.let { snapshot -> snapshot::displayName }
+                                        ?: { bech32: String -> appState.mentionDisplayName(bech32) }
+                                },
+                            isGroupMember =
+                                remember(ttsMentionPresentation, mentionMembershipResolver) {
+                                    if (ttsMentionPresentation != null) {
+                                        ttsMentionPresentation.membershipResolver()
+                                    } else {
+                                        mentionMembershipResolver
+                                    }
+                                },
+                            useDecorativeBackgrounds = !customBubbleColorActive,
+                            onNostrProfileTap =
+                                remember(appState) {
+                                    { bech32: String -> appState.presentNostrProfile(bech32) }
+                                },
+                            onLastTextLayout = { lastLineLayout = it },
+                            onSelectableTextLayoutChanged = selectableTextLayoutReporter,
+                            onLinkTextLayoutChanged = markdownLinkLayoutReporter,
+                            onCopyLink = onCopyMarkdownLink,
+                            deferLinkActivation = deferMarkdownLinkActivation,
+                            ttsLeafHighlightResolver = presentedTtsLeafHighlightResolver,
+                            ttsSentenceActions =
+                                ttsSentenceActions.takeUnless {
+                                    textSelectionMode ||
+                                        bodyIsCollapsed ||
+                                        bodyCollapsePending
+                                },
+                            ttsReadAloudHighlightStyle = highlightStyle,
+                            ttsSentenceLayoutReporter = presentedTtsSentenceLayoutReporter,
+                            searchHighlight = searchHighlight,
+                        )
+                    }
                 }
             } else {
                 readAloudMessageSemantics(
                     progress = ttsReadAloudProgress,
                     modifier = bodyMeasurementModifier,
                     messageContent = {
-                        val sentenceActions =
-                            ttsSentenceAccessibilityActions(
-                                "plain",
-                                bodyText,
-                                ttsSentenceActions.takeUnless {
-                                    textSelectionMode ||
-                                        bodyIsCollapsed ||
-                                        bodyCollapsePending
-                                },
-                            )
-                        Text(
-                            remember(bodyText) { EmojiShortcodes.annotate(AnnotatedString(bodyText)) },
-                            inlineContent = EmojiShortcodes.content(),
-                            style = MaterialTheme.typography.bodyLarge,
-                            // A tombstone is narration, not authored content, and
-                            // the prototype italicises it to say so.
-                            fontStyle = if (deleted) FontStyle.Italic else null,
-                            modifier =
-                                plainTextSelectionModifier
-                                    .semantics { customActions = sentenceActions }
-                                    .then(plainHighlightModifier)
-                                    .onGloballyPositioned { coordinates ->
-                                        plainLayoutCoordinates = coordinates
-                                        presentedTtsSentenceLayoutReporter?.invoke(
-                                            "plain",
-                                            bodyText,
-                                            plainLayoutResult,
-                                            coordinates,
-                                        )
-                                    },
-                            maxLines = if (collapsible) MESSAGE_COLLAPSE_LINE_LIMIT + 1 else Int.MAX_VALUE,
-                            onTextLayout = {
-                                lastLineLayout = it
-                                plainLayoutResult = it
-                                presentedTtsSentenceLayoutReporter?.invoke(
+                        traceConversationUiSection(ConversationUiTrace.TEXT) {
+                            val sentenceActions =
+                                ttsSentenceAccessibilityActions(
                                     "plain",
                                     bodyText,
-                                    it,
-                                    plainLayoutCoordinates,
+                                    ttsSentenceActions.takeUnless {
+                                        textSelectionMode ||
+                                            bodyIsCollapsed ||
+                                            bodyCollapsePending
+                                    },
                                 )
-                                onPlainTextLayout(it)
-                            },
-                        )
+                            Text(
+                                remember(bodyText) { EmojiShortcodes.annotate(AnnotatedString(bodyText)) },
+                                inlineContent = EmojiShortcodes.content(),
+                                style = MaterialTheme.typography.bodyLarge,
+                                // A tombstone is narration, not authored content, and
+                                // the prototype italicises it to say so.
+                                fontStyle = if (deleted) FontStyle.Italic else null,
+                                modifier =
+                                    plainTextSelectionModifier
+                                        .semantics { customActions = sentenceActions }
+                                        .then(plainHighlightModifier)
+                                        .onGloballyPositioned { coordinates ->
+                                            plainLayoutCoordinates = coordinates
+                                            presentedTtsSentenceLayoutReporter?.invoke(
+                                                "plain",
+                                                bodyText,
+                                                plainLayoutResult,
+                                                coordinates,
+                                            )
+                                        },
+                                maxLines = if (collapsible) MESSAGE_COLLAPSE_LINE_LIMIT + 1 else Int.MAX_VALUE,
+                                onTextLayout = {
+                                    lastLineLayout = it
+                                    plainLayoutResult = it
+                                    presentedTtsSentenceLayoutReporter?.invoke(
+                                        "plain",
+                                        bodyText,
+                                        it,
+                                        plainLayoutCoordinates,
+                                    )
+                                    onPlainTextLayout(it)
+                                },
+                            )
+                        }
                     },
                 )
             }

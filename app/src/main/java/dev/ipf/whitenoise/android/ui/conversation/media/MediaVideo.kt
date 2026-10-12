@@ -42,6 +42,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onLongClick
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import dev.ipf.marmotkit.EncryptedMediaVersionFfi
 import dev.ipf.marmotkit.MediaAttachmentReferenceFfi
@@ -52,9 +53,12 @@ import dev.ipf.whitenoise.android.media.AttachmentPlaintext
 import dev.ipf.whitenoise.android.media.AttachmentPlaintextCache
 import dev.ipf.whitenoise.android.media.MediaCacheDirs
 import dev.ipf.whitenoise.android.media.MediaPipeline
+import dev.ipf.whitenoise.android.media.holdCacheFileInUse
 import dev.ipf.whitenoise.android.media.playbackErrorInvalidatesAttachmentCache
+import dev.ipf.whitenoise.android.media.releaseCacheFileInUse
 import dev.ipf.whitenoise.android.state.AttachmentDownloadPriority
 import dev.ipf.whitenoise.android.state.ConversationController
+import dev.ipf.whitenoise.android.state.FileUploadProgress
 import dev.ipf.whitenoise.android.state.MediaAutoDownloadType
 import dev.ipf.whitenoise.android.state.TimelineMessage
 import dev.ipf.whitenoise.android.state.WhiteNoiseAppState
@@ -179,7 +183,8 @@ internal suspend fun resolveVideoViewerFile(
  * Single video tile in an album grid. Auto-materialises on first
  * composition (mine + cached short-circuit; otherwise FFI download honoring
  * the auto-download policy), decodes a scaled poster, overlays a centered
- * play affordance. Tap delegates the logical attachment immediately so a
+ * play affordance. An own video still being sent from its staged file is
+ * neither materialized nor opened until MDK confirms it. Tap delegates the logical attachment immediately so a
  * conversation-owned viewer can continue materialization after this lazy tile is disposed.
  */
 @Composable
@@ -210,16 +215,14 @@ internal fun MediaVideoGridTile(
         remember(messageIdHex, attachmentIndex) {
             controller.hasCachedAttachment(messageIdHex, attachmentIndex)
         }
+    val pendingAttachment =
+        if (mine) controller.pendingAttachmentsList(messageIdHex).getOrNull(attachmentIndex) else null
     // A message still queued for upload has no materialized file to seek in, so
     // its poster comes from the bytes the retry path already retains (#2732).
-    val retainedPendingVideoBytes =
-        controller
-            .pendingAttachmentsList(messageIdHex)
-            .getOrNull(attachmentIndex)
-            ?.takeIf { mine && it.isPendingVideo }
-            ?.inMemoryBytes
-    val retainedPlaintextOnEntry =
-        mine && controller.pendingAttachmentsList(messageIdHex).getOrNull(attachmentIndex)?.inMemoryBytes != null
+    val retainedPendingVideoBytes = pendingAttachment?.takeIf { it.isPendingVideo }?.inMemoryBytes
+    val retainedPlaintextOnEntry = pendingAttachment?.inMemoryBytes != null
+    // A large own video is sent from its staged file, with nothing in memory or published to fetch until it lands.
+    val sendingFromStagedFile = pendingAttachment?.sourceFile != null
     // Seed the poster from the epoch-independent thumbnail cache (mirrors
     // MediaImageGridTile). A sourceEpoch upgrade re-keys this state, so without
     // the cache seed the poster would reset to null and flash back to the
@@ -242,6 +245,7 @@ internal fun MediaVideoGridTile(
             hasCachedAttachment = cachedPlaintextOnEntry,
             hasCachedFile = localFile != null,
             hasRetainedPlaintext = retainedPlaintextOnEntry,
+            sendingFromStagedFile = sendingFromStagedFile,
         )
     var materializationIntent by
         rememberAttachmentMaterializationIntent(
@@ -267,10 +271,16 @@ internal fun MediaVideoGridTile(
 
     /**
      * Promotes the tap to interactive priority and delegates ownership before this tile can dispose. While the reader's
-     * Cancel awaits acknowledgement a tap anywhere on the tile does nothing, so it cannot restart that transfer.
+     * Cancel awaits acknowledgement a tap anywhere on the tile does nothing, so it cannot restart that transfer. A
+     * video still being sent from its staged file has nothing to open yet, so a tap on it is not promoted. Only its
+     * "+N" overflow still opens the album, at the next item that can be shown.
      */
     fun dispatchViewerOpen(retry: Boolean = failed || (localFile == null && (transfer.failed || transfer.cancelled))) {
         if (transfer.cancelling) return
+        if (sendingFromStagedFile) {
+            if (overflowCount > 0) onTap()
+            return
+        }
         val open = {
             // Native failure can offer Retry before the old local waiter reports its own failure.
             if (retry) {
@@ -350,11 +360,14 @@ internal fun MediaVideoGridTile(
         appState = appState,
         isReady = { localFile != null },
         ensureMaterialization = {
-            if (failed) {
-                failed = false
-                reloadToken++
+            // A video still being sent from its staged file has nothing to materialize until MDK publishes it.
+            if (!sendingFromStagedFile) {
+                if (failed) {
+                    failed = false
+                    reloadToken++
+                }
+                materializationIntent = materializationIntent.afterInteractiveRequest()
             }
-            materializationIntent = materializationIntent.afterInteractiveRequest()
         },
         dispatchOpen = { dispatchReadyVideo() },
     )
@@ -382,6 +395,8 @@ internal fun MediaVideoGridTile(
         val (frame, duration) =
             withContext(Dispatchers.IO) {
                 val mmr = android.media.MediaMetadataRetriever()
+                // Held so a publication elsewhere in the directory cannot delete the file mid-read.
+                holdCacheFileInUse(f)
                 try {
                     mmr.setDataSource(f.absolutePath)
                     val edge = MediaPipeline.THUMBNAIL_MAX_EDGE_PX
@@ -406,6 +421,7 @@ internal fun MediaVideoGridTile(
                     null to 0L
                 } finally {
                     runCatching { mmr.release() }
+                    releaseCacheFileInUse(f)
                 }
             }
         if (duration > 0L) tileDurationMs = duration
@@ -464,6 +480,13 @@ internal fun MediaVideoGridTile(
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     when {
+                        // Never fetched while it sends, so it shows the play glyph of a pending video held in memory.
+                        sendingFromStagedFile ->
+                            Icon(
+                                painter = painterResource(R.drawable.ic_play_arrow),
+                                contentDescription = stringResource(R.string.reply_media_video),
+                                modifier = Modifier.size(24.dp),
+                            )
                         failed ->
                             Icon(
                                 Icons.Default.Refresh,
@@ -557,7 +580,10 @@ internal fun MediaVideoGridTile(
     }
 }
 
-/** Materializes one inline video and delegates its open request to the conversation host. */
+/**
+ * Materializes one inline video and delegates its open request to the conversation host. While a large
+ * video is being sent, [uploadProgress] is read by the play disc's ring, which fills with the send's progress.
+ */
 @Composable
 internal fun MediaVideoBubble(
     item: TimelineMessage,
@@ -573,6 +599,7 @@ internal fun MediaVideoBubble(
     uploading: Boolean = false,
     uploadFailed: Boolean = false,
     onRetryUpload: (() -> Unit)? = null,
+    uploadProgress: () -> FileUploadProgress? = { null },
 ) {
     val record = item.record
     val messageIdHex = record.messageIdHex
@@ -608,16 +635,14 @@ internal fun MediaVideoBubble(
         remember(pillKey) {
             controller.hasCachedAttachment(messageIdHex, attachmentIndex)
         }
+    val pendingAttachment =
+        if (mine) controller.pendingAttachmentsList(messageIdHex).getOrNull(attachmentIndex) else null
     // A message still queued for upload has no materialized file to seek in, so
     // its poster comes from the bytes the retry path already retains (#2732).
-    val retainedPendingVideoBytes =
-        controller
-            .pendingAttachmentsList(messageIdHex)
-            .getOrNull(attachmentIndex)
-            ?.takeIf { mine && it.isPendingVideo }
-            ?.inMemoryBytes
-    val retainedPlaintextOnEntry =
-        mine && controller.pendingAttachmentsList(messageIdHex).getOrNull(attachmentIndex)?.inMemoryBytes != null
+    val retainedPendingVideoBytes = pendingAttachment?.takeIf { it.isPendingVideo }?.inMemoryBytes
+    val retainedPlaintextOnEntry = pendingAttachment?.inMemoryBytes != null
+    // A large own video is sent from its staged file, with nothing in memory or published to fetch until it lands.
+    val sendingFromStagedFile = pendingAttachment?.sourceFile != null
     var loading by remember(pillKey, epoch) { mutableStateOf(false) }
     var failed by remember(pillKey, epoch) { mutableStateOf(false) }
     // Seed the poster from the epoch-independent thumbnail cache (mirrors
@@ -647,6 +672,7 @@ internal fun MediaVideoBubble(
             hasCachedAttachment = cachedPlaintextOnEntry,
             hasCachedFile = localFile != null,
             hasRetainedPlaintext = retainedPlaintextOnEntry,
+            sendingFromStagedFile = sendingFromStagedFile,
         )
     var materializationIntent by
         rememberAttachmentMaterializationIntent(
@@ -743,9 +769,12 @@ internal fun MediaVideoBubble(
         loading = false
     }
 
-    /** Opens the logical video immediately so materialization can continue after bubble disposal. */
+    /**
+     * Opens the logical video immediately so materialization can continue after bubble disposal. A video still being
+     * sent from its staged file has nothing to open yet, so it never opens.
+     */
     fun dispatchViewerOpen(retry: Boolean = failed || (localFile == null && (transfer.failed || transfer.cancelled))) {
-        if (transfer.cancelling) return
+        if (transfer.cancelling || sendingFromStagedFile) return
         val open = {
             // Native failure can offer Retry before the old local waiter reports its own failure.
             if (retry) {
@@ -797,11 +826,14 @@ internal fun MediaVideoBubble(
         appState = appState,
         isReady = { localFile != null },
         ensureMaterialization = {
-            if (failed) {
-                failed = false
-                reloadToken++
+            // A video still being sent from its staged file has nothing to materialize until MDK publishes it.
+            if (!sendingFromStagedFile) {
+                if (failed) {
+                    failed = false
+                    reloadToken++
+                }
+                materializationIntent = materializationIntent.afterInteractiveRequest()
             }
-            materializationIntent = materializationIntent.afterInteractiveRequest()
         },
         dispatchOpen = { dispatchReadyVideo() },
     )
@@ -831,6 +863,8 @@ internal fun MediaVideoBubble(
         val (bm, dur) =
             withContext(Dispatchers.IO) {
                 val mmr = android.media.MediaMetadataRetriever()
+                // Held so a publication elsewhere in the directory cannot delete the file mid-read.
+                holdCacheFileInUse(f)
                 try {
                     mmr.setDataSource(f.absolutePath)
                     val frame =
@@ -857,6 +891,7 @@ internal fun MediaVideoBubble(
                     null to 0L
                 } finally {
                     runCatching { mmr.release() }
+                    releaseCacheFileInUse(f)
                 }
             }
         if (dur > 0L) durationMs = dur
@@ -921,6 +956,8 @@ internal fun MediaVideoBubble(
                                     when {
                                         uploadFailed -> onRetryUpload?.invoke()
                                         localFile != null -> scope.launch { dispatchReadyVideo() }
+                                        // Nothing is playable until the staged file is sent, and the ring shows it.
+                                        sendingFromStagedFile -> Unit
                                         else -> dispatchViewerOpen()
                                     }
                                 },
@@ -937,12 +974,7 @@ internal fun MediaVideoBubble(
                                             .size(28.dp)
                                             .clickable { onRetryUpload?.invoke() },
                                 )
-                            uploading ->
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(24.dp),
-                                    strokeWidth = 2.5.dp,
-                                    color = LocalContentColor.current,
-                                )
+                            uploading -> VideoUploadIndicator(uploadProgress)
                             !startDownload && localFile == null ->
                                 Icon(
                                     Icons.Default.Download,
@@ -1025,6 +1057,66 @@ internal suspend fun materializeVideoAttachment(
 
     return videoMaterializations.run(file.absolutePath) {
         materializeVideoAttachmentOnce(attachmentKey, file, resolveBytes)
+    }
+}
+
+/**
+ * Materializes the video and runs [use] on its file while the cache holds it, so a publication elsewhere in the
+ * video directory cannot delete it between materialization and [use]. A file evicted before the hold took it is
+ * published again under the hold, which covers its stable path.
+ */
+internal suspend fun <T> withMaterializedVideoFile(
+    context: android.content.Context,
+    controller: ConversationController,
+    messageIdHex: String,
+    attachmentIndex: Int,
+    reference: MediaAttachmentReferenceFfi,
+    mine: Boolean,
+    use: suspend (java.io.File) -> T,
+): T =
+    withHeldMaterializedFile(
+        materialize = {
+            materializeVideoAttachment(context, controller, messageIdHex, attachmentIndex, reference, mine)
+        },
+        use = use,
+    )
+
+/**
+ * Runs [use] on the file [materialize] returns while the cache holds it. A file evicted before the hold took it is
+ * materialized again, under the hold that already covers its stable path.
+ */
+internal suspend fun <T> withHeldMaterializedFile(
+    materialize: suspend () -> java.io.File,
+    use: suspend (java.io.File) -> T,
+): T {
+    var file = materialize()
+    holdCacheFileInUse(file)
+    try {
+        if (!withContext(Dispatchers.IO) { AttachmentPlaintextCache.isHeldFilePresent(file) }) {
+            val again = materialize()
+            // The path is stable today, and should it ever move, the hold moves with it before the old one ends.
+            if (again != file) {
+                holdCacheFileInUse(again)
+                releaseCacheFileInUse(file)
+                file = again
+                if (!withContext(Dispatchers.IO) { AttachmentPlaintextCache.isHeldFilePresent(file) }) {
+                    throw java.io.IOException("materialized video was evicted before it could be held")
+                }
+            }
+        }
+        return use(file)
+    } finally {
+        releaseCacheFileInUse(file)
+    }
+}
+
+/** Holds [file] in the attachment cache for as long as the calling composition shows or plays it. */
+@Suppress("FunctionNaming")
+@Composable
+internal fun HoldCacheFileWhileComposed(file: java.io.File) {
+    DisposableEffect(file) {
+        holdCacheFileInUse(file)
+        onDispose { releaseCacheFileInUse(file) }
     }
 }
 
@@ -1243,6 +1335,11 @@ private fun rememberCachedVideoAttachmentFileState(
     return cachedFile
 }
 
+/**
+ * Whether a video tile materializes its file on its own. A video this device is still sending from its staged
+ * file never does: it has no bytes in memory and nothing published, so a fetch could only fail and replace the
+ * upload ring with a failed transfer.
+ */
 @VisibleForTesting
 internal fun shouldStartVideoAttachmentDownload(
     mine: Boolean,
@@ -1251,15 +1348,28 @@ internal fun shouldStartVideoAttachmentDownload(
     hasCachedAttachment: Boolean,
     hasCachedFile: Boolean,
     hasRetainedPlaintext: Boolean = false,
+    sendingFromStagedFile: Boolean = false,
 ): Boolean =
-    shouldMaterializeAttachmentAutomatically(
-        mine = mine,
-        mediaAutoDownloadAllowed = videoAutoDownload,
-        automaticDownloadsPaused = automaticDownloadsPaused,
-        hasCachedAttachment = hasCachedAttachment,
-        hasMaterializedFile = hasCachedFile,
-        hasRetainedPlaintext = hasRetainedPlaintext,
-    )
+    !sendingFromStagedFile &&
+        shouldMaterializeAttachmentAutomatically(
+            mine = mine,
+            mediaAutoDownloadAllowed = videoAutoDownload,
+            automaticDownloadsPaused = automaticDownloadsPaused,
+            hasCachedAttachment = hasCachedAttachment,
+            hasMaterializedFile = hasCachedFile,
+            hasRetainedPlaintext = hasRetainedPlaintext,
+        )
+
+/**
+ * Whether [attachmentIndex] of the pending message [messageIdHex] is this device's own attachment, still being sent
+ * from its staged file. Only documents, audio and videos are ever staged. Once MDK confirms the message it carries its
+ * published id, which has no pending attachments.
+ */
+internal fun ConversationController.isSendingFromStagedFile(
+    messageIdHex: String,
+    attachmentIndex: Int,
+    mine: Boolean,
+): Boolean = mine && pendingAttachmentsList(messageIdHex).getOrNull(attachmentIndex)?.sourceFile != null
 
 private fun videoAttachmentCacheFile(
     context: android.content.Context,
@@ -1461,6 +1571,8 @@ internal fun VideoViewerPage(
             exo.release()
         }
     }
+    // The player reopens its file to seek or replay, so the cache holds it for as long as this page plays it.
+    HoldCacheFileWhileComposed(file)
     // Only the current page owns a decoder or audio focus. HorizontalPager
     // pre-composes neighbours, so preparing in remember would hold multiple
     // MediaCodec instances and could invalidate healthy cache entries when a
@@ -1530,3 +1642,36 @@ private const val ALBUM_OVERFLOW_SCRIM_ALPHA = 0.58f
 /** An unavailable clip keeps its poster readable under a light dim and a warning glyph. */
 private const val VIDEO_UNAVAILABLE_SCRIM_ALPHA = 0.28f
 private val VIDEO_UNAVAILABLE_GLYPH = 28.dp
+
+/**
+ * The play disc's upload ring, reading [progress] here so only the ring recomposes as bytes move. It is
+ * determinate while a share of work is known and spins otherwise, and it names the step and its bytes for
+ * TalkBack, as the download ring on a video tile does.
+ */
+@Composable
+@Suppress("FunctionNaming") // Jetpack Compose functions use UpperCamelCase.
+internal fun VideoUploadIndicator(progress: () -> FileUploadProgress?) {
+    val current = progress()
+    val fraction = current?.ringFraction
+    val description = current?.let { uploadProgressDescription(it) }
+    val spoken =
+        if (description != null) {
+            Modifier.semantics { contentDescription = description }
+        } else {
+            Modifier
+        }
+    if (fraction != null) {
+        CircularProgressIndicator(
+            progress = { fraction },
+            modifier = Modifier.size(24.dp).then(spoken),
+            strokeWidth = 2.5.dp,
+            color = LocalContentColor.current,
+        )
+    } else {
+        CircularProgressIndicator(
+            modifier = Modifier.size(24.dp).then(spoken),
+            strokeWidth = 2.5.dp,
+            color = LocalContentColor.current,
+        )
+    }
+}
