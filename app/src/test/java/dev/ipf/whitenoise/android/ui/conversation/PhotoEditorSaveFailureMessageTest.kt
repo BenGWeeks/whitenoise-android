@@ -10,14 +10,10 @@ class PhotoEditorSaveFailureMessageTest {
 
     @Test
     fun processingLimitIsDistinguishedFromOtherFailuresWithoutClaimingSuccess() {
-        assertEquals(
-            "budget",
-            photoEditorSaveFailureMessage(PhotoEditorCommitResult.RenderFailed(PhotoEditorRenderResult.MemoryLimit), messages),
-        )
-        assertEquals(
-            "save",
-            photoEditorSaveFailureMessage(PhotoEditorCommitResult.RenderFailed(PhotoEditorRenderResult.EncodeFailed), messages),
-        )
+        val budgetFailure = PhotoEditorCommitResult.RenderFailed(PhotoEditorRenderResult.MemoryLimit)
+        val encodeFailure = PhotoEditorCommitResult.RenderFailed(PhotoEditorRenderResult.EncodeFailed)
+        assertEquals("budget", photoEditorSaveFailureMessage(budgetFailure, messages))
+        assertEquals("save", photoEditorSaveFailureMessage(encodeFailure, messages))
         assertEquals("save", photoEditorSaveFailureMessage(PhotoEditorCommitResult.StaleAttachment, messages))
     }
 }

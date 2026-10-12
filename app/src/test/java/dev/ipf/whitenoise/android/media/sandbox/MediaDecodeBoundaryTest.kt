@@ -46,14 +46,17 @@ class MediaDecodeBoundaryTest {
         )
         try {
             assertNull(MediaPipeline.readExifOrientation(source))
-            assertEquals(MediaPipeline.OriginalImageReadResult.Failed, MediaPipeline.prepareOriginalImageForUpload(source, "photo.png"))
+            val unavailable = MediaPipeline.prepareOriginalImageForUpload(source, "photo.png")
+            assertEquals(MediaPipeline.OriginalImageReadResult.Failed, unavailable)
             assertNull(MediaPipeline.sanitizeAnimatedImageMetadata(gif))
             orientation = MediaPipeline.EXIF_ORIENTATION_ROTATE_90
-            assertEquals(MediaPipeline.OriginalImageReadResult.Unsupported, MediaPipeline.prepareOriginalImageForUpload(source, "photo.png"))
+            val rotated = MediaPipeline.prepareOriginalImageForUpload(source, "photo.png")
+            assertEquals(MediaPipeline.OriginalImageReadResult.Unsupported, rotated)
             assertNull(MediaPipeline.sanitizeAnimatedImageMetadata(gif))
             assertEquals(0, downstreamCalls)
             IsolatedMediaDecoder.installTestTransport(TestMediaDecodeTransport)
-            assertTrue(MediaPipeline.prepareOriginalImageForUpload(source, "photo.png") is MediaPipeline.OriginalImageReadResult.Success)
+            val recovered = MediaPipeline.prepareOriginalImageForUpload(source, "photo.png")
+            assertTrue(recovered is MediaPipeline.OriginalImageReadResult.Success)
         } finally {
             IsolatedMediaDecoder.installTestTransport(TestMediaDecodeTransport)
         }

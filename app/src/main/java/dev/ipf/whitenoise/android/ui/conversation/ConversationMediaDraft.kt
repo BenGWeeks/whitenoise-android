@@ -30,7 +30,6 @@ import dev.ipf.whitenoise.android.media.editor.PhotoDraftStager
 import dev.ipf.whitenoise.android.media.editor.PhotoEditRecipe
 import dev.ipf.whitenoise.android.media.editor.PhotoEditorCommitResult
 import dev.ipf.whitenoise.android.media.editor.PhotoEditorCommitter
-import dev.ipf.whitenoise.android.media.editor.PhotoEditorRenderResult
 import dev.ipf.whitenoise.android.media.editor.PhotoEditorRenderer
 import dev.ipf.whitenoise.android.media.editor.PhotoEditorSourceFailure
 import dev.ipf.whitenoise.android.media.editor.editorDigest
@@ -70,17 +69,6 @@ internal data class PhotoEditorMessages(
     val saveFailed: String,
     val budgetExceeded: String = saveFailed,
 )
-
-/** Preserve the previous attachment while explaining a typed local processing refusal. */
-internal fun photoEditorSaveFailureMessage(
-    result: PhotoEditorCommitResult,
-    messages: PhotoEditorMessages,
-): String =
-    if (result is PhotoEditorCommitResult.RenderFailed && result.result == PhotoEditorRenderResult.MemoryLimit) {
-        messages.budgetExceeded
-    } else {
-        messages.saveFailed
-    }
 
 internal data class ActivePhotoEditor(
     val slot: PendingMediaSlot,
