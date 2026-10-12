@@ -82,7 +82,7 @@ class ConversationWidgetTapActivity : ComponentActivity() {
         request: WidgetTapRequest,
         state: WhiteNoiseAppState,
         keyguard: KeyguardManager?,
-        generation: Long,
+        generation: Int,
     ): Boolean =
         state.runtimeGeneration == generation &&
             canOpenWidget(request, state, keyguard) &&

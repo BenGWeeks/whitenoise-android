@@ -210,7 +210,7 @@ internal object ConversationWidgets {
         val state: WhiteNoiseAppState?,
         val accounts: Set<String>?,
         val epoch: Long,
-        val generation: Long?,
+        val generation: Int?,
     )
 
     private suspend fun loadRows(
