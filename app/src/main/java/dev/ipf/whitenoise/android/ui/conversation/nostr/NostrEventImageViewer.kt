@@ -77,7 +77,7 @@ internal fun NostrEventImagePane(
     }
     val viewDescription = stringResource(R.string.nostr_event_view_image)
     NostrImageLayout(
-        presentation = NostrImagePresentation(image, loading, failed),
+        presentation = NostrImagePresentation(image, loading, failed, attempt > 0 || image != null),
         description = viewDescription,
         compact = compact,
         onOpen = { fullscreen = true },
@@ -98,6 +98,7 @@ private data class NostrImagePresentation(
     val image: ImageBitmap?,
     val loading: Boolean,
     val failed: Boolean,
+    val requested: Boolean,
 )
 
 @Composable
@@ -108,7 +109,14 @@ private fun NostrImageLayout(
     onOpen: () -> Unit,
     onAction: () -> Unit,
 ) {
-    if (compact) {
+    if (!presentation.requested) {
+        NostrImageAction(
+            presentation = presentation,
+            description = description,
+            modifier = Modifier.fillMaxWidth().height(48.dp * LocalDensity.current.fontScale.coerceAtLeast(1f)),
+            onClick = onAction,
+        )
+    } else if (compact) {
         Row(Modifier.fillMaxWidth().height(96.dp), verticalAlignment = Alignment.CenterVertically) {
             NostrImageViewport(
                 presentation = presentation,

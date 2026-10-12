@@ -46,12 +46,12 @@ class NostrEventMediaLinkTest {
             MarkdownInlineFfi.Link(
                 dest = url,
                 title = null,
-                children = listOf(MarkdownInlineFfi.Text("Watch clip")),
+                children = listOf(MarkdownInlineFfi.Text("another-video.example")),
                 classification = MarkdownLinkDestinationKindFfi.WEB,
             ),
             opened,
         )
-        composeRule.onNodeWithText("Watch clip").performTouchInput { click(Offset(10f, center.y)) }
+        composeRule.onNodeWithText("another-video.example").performTouchInput { click(Offset(10f, center.y)) }
         composeRule.runOnIdle { assertTrue(opened.isEmpty()) }
         val label = ApplicationProvider.getApplicationContext<Context>().getString(R.string.link_confirm_open)
         composeRule.onNodeWithText(label).performClick()

@@ -22,6 +22,15 @@ class NostrEventMediaActionsTest {
     }
 
     @Test
+    fun rendererCanonicalizationPreservesTypedOpaqueMediaAndItsOriginalLocator() {
+        val original = "HTTPS://CDN.EXAMPLE/opaque-stream"
+        val media = NostrEventMediaCandidates(emptyList(), listOf(original))
+        var opened: String? = null
+        assertTrue(activateNostrMediaLink("https://cdn.example/opaque-stream", media, null, { opened = it }))
+        assertEquals(original, opened)
+    }
+
+    @Test
     fun unsafeDestinationsNeverReachEitherViewer() {
         val urls =
             listOf(

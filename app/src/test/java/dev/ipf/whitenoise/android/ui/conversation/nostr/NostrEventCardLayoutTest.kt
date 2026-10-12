@@ -7,14 +7,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
-import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
 import dev.ipf.whitenoise.android.ui.theme.WhiteNoiseTheme
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -36,7 +35,7 @@ class NostrEventCardLayoutTest {
             }
         }
         composeRule.onNodeWithTag("card").assertHeightIsEqualTo(40.dp)
-        assertTrue(composeRule.onAllNodesWithTag(NOSTR_CARD_EXPAND_TAG).fetchSemanticsNodes().isEmpty())
+        composeRule.onNodeWithTag(NOSTR_CARD_EXPAND_TAG).assertIsNotDisplayed()
     }
 
     @Test
@@ -55,6 +54,6 @@ class NostrEventCardLayoutTest {
         assertEquals(1, expanded)
         composeRule.runOnIdle { ceiling.value = 400.dp }
         composeRule.onNodeWithTag("card").assertHeightIsEqualTo(200.dp)
-        assertTrue(composeRule.onAllNodesWithTag(NOSTR_CARD_EXPAND_TAG).fetchSemanticsNodes().isEmpty())
+        composeRule.onNodeWithTag(NOSTR_CARD_EXPAND_TAG).assertIsNotDisplayed()
     }
 }

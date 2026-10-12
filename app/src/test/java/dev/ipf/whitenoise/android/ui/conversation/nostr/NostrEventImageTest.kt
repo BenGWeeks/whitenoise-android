@@ -7,6 +7,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
@@ -14,12 +15,14 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
 import dev.ipf.whitenoise.android.R
 import dev.ipf.whitenoise.android.core.nostr.NostrEvent
 import dev.ipf.whitenoise.android.ui.theme.WhiteNoiseTheme
 import kotlinx.coroutines.CompletableDeferred
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -49,8 +52,11 @@ class NostrEventImageTest {
                 )
             }
         }
-        composeRule.waitForIdle()
-        composeRule.onNodeWithContentDescription(string(R.string.close)).performClick()
+        val closeLabel = string(R.string.close)
+        composeRule.waitUntil(10_000) {
+            composeRule.onAllNodesWithContentDescription(closeLabel).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithContentDescription(closeLabel).assertIsDisplayed().performClick()
         composeRule.runOnIdle {
             assertEquals(1, downloads)
             assertEquals(1, dismissals)
@@ -72,7 +78,7 @@ class NostrEventImageTest {
     }
 
     @Test
-    fun compactImageKeepsBoundsAcrossLoadingFailureAndRetry() {
+    fun compactImageGrowsOnlyOnRequestAndKeepsBoundsAcrossLoadingFailureAndRetry() {
         val pending = CompletableDeferred<ImageBitmap?>()
         var downloads = 0
         composeRule.setContent {
@@ -89,17 +95,19 @@ class NostrEventImageTest {
                 }
             }
         }
+        composeRule.onNodeWithTag("image-envelope").assertHeightIsEqualTo(48.dp)
         val initial = composeRule.onNodeWithTag("image-envelope").fetchSemanticsNode().boundsInRoot
         composeRule.runOnIdle { assertEquals(0, downloads) }
         composeRule.onNodeWithText(string(R.string.nostr_event_view_image)).performClick()
         composeRule.runOnIdle { assertEquals(1, downloads) }
-        assertEquals(initial, composeRule.onNodeWithTag("image-envelope").fetchSemanticsNode().boundsInRoot)
+        val requested = composeRule.onNodeWithTag("image-envelope").fetchSemanticsNode().boundsInRoot
+        assertTrue(requested.height > initial.height)
         pending.complete(null)
         composeRule.onNodeWithText(string(R.string.nostr_event_image_failed)).assertIsDisplayed()
-        assertEquals(initial, composeRule.onNodeWithTag("image-envelope").fetchSemanticsNode().boundsInRoot)
+        assertEquals(requested, composeRule.onNodeWithTag("image-envelope").fetchSemanticsNode().boundsInRoot)
         composeRule.onNodeWithText(string(R.string.retry)).performClick()
         composeRule.waitForIdle()
-        assertEquals(initial, composeRule.onNodeWithTag("image-envelope").fetchSemanticsNode().boundsInRoot)
+        assertEquals(requested, composeRule.onNodeWithTag("image-envelope").fetchSemanticsNode().boundsInRoot)
         composeRule.runOnIdle { assertEquals(2, downloads) }
     }
 
