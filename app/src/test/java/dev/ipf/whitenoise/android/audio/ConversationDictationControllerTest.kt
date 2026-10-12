@@ -108,8 +108,9 @@ class ConversationDictationControllerTest {
     fun noDialogSettlementPreservesUnsavedWordsUntilTheirDraftWriteSucceeds() {
         var allowWrite = false
         val f = fixture(draft = TextFieldValue(""), allowDraftWrite = { allowWrite })
-        f.platform.tracksCallerAudioDisposal = true
         failRecognizedTail(f, send = true)
+        // This switch models disposal of the failed take, not the placeholder before initial capture.
+        f.platform.tracksCallerAudioDisposal = true
         val failed = f.controller.state as ConversationDictationState.Failed
         f.controller.finishFailedToDraft(failed.sessionId)
         assertTrue(f.controller.state is ConversationDictationState.Failed)
@@ -126,8 +127,8 @@ class ConversationDictationControllerTest {
     fun freshGestureCapturesWordsSavedDuringNoDialogSettlement() {
         var allowWrite = false
         val f = fixture(draft = TextFieldValue(""), allowDraftWrite = { allowWrite })
-        f.platform.tracksCallerAudioDisposal = true
         failRecognizedTail(f, send = false)
+        f.platform.tracksCallerAudioDisposal = true
         assertEquals("", f.drafts.getValue(key()).text)
         allowWrite = true
         f.controller.requestFreshComposerStart(ACCOUNT, GROUP, TextFieldValue(""), null)

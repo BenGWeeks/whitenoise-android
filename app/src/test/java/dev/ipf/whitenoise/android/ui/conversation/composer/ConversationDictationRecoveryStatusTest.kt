@@ -62,7 +62,8 @@ class ConversationDictationRecoveryStatusTest {
     ) {
         val access = ConversationDictationComposerAccess(1L, 1L, phase, ConversationDictationFailure.NoMatch)
         composeRule.setContent {
-            CompositionLocalProvider(LocalLayoutDirection provides if (rtl) LayoutDirection.Rtl else LayoutDirection.Ltr) {
+            val direction = if (rtl) LayoutDirection.Rtl else LayoutDirection.Ltr
+            CompositionLocalProvider(LocalLayoutDirection provides direction) {
                 WhiteNoiseTheme(darkTheme = rtl, amoled = rtl, fontScale = if (rtl) 2f else 1f) {
                     Surface(Modifier.width(360.dp)) { ConversationDictationRecoveryStatus(access) }
                 }
