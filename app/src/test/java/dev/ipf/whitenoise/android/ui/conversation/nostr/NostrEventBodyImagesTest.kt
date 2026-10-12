@@ -94,6 +94,17 @@ class NostrEventBodyImagesTest {
         assertNull(nostrLinkedMediaKind("https://127.0.0.1/movie.mp4"))
     }
 
+    @Test
+    fun nativeMetadataKeepsLongSignedLocatorsWhileBodyDiscoveryStaysBounded() {
+        val imageUrl = "https://images.example/photo?token=${"x".repeat(3000)}"
+        val videoUrl = "https://media.example/video?token=${"x".repeat(3000)}"
+        val oversizedBodyImage = "https://images.example/${"x".repeat(3000)}.jpg"
+        val document = document(MarkdownBlockFfi.Paragraph(listOf(image(oversizedBodyImage))))
+        val media = nostrEventMediaCandidates(listOf(imageUrl), listOf(videoUrl), document)
+        assertEquals(listOf(imageUrl), media.imageUrls)
+        assertEquals(listOf(videoUrl), media.videoUrls)
+    }
+
     private fun image(url: String) =
         MarkdownInlineFfi.Image(
             dest = url,

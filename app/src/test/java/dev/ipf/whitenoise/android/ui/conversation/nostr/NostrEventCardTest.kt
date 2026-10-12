@@ -87,7 +87,7 @@ class NostrEventCardTest {
         val original =
             noteCard().copy(
                 readerBody = "A body video",
-                mediaUrl = "https://cdn.example/${"x".repeat(2048)}.m3u8",
+                mediaUrl = "http://cdn.example/unsafe.m3u8",
                 mediaMimeType = "application/vnd.apple.mpegurl",
             )
         var presented: NostrEventCardModel? = null
@@ -120,6 +120,32 @@ class NostrEventCardTest {
         }
         composeRule.waitUntil(10_000) { presented?.mediaUrl == fallback }
         composeRule.runOnIdle { assertNull(presented?.mediaMimeType) }
+    }
+
+    @Test
+    fun longTypedVideoUrlRemainsPlayableWithoutABodyFallback() {
+        val original =
+            noteCard().copy(
+                summary = null,
+                readerBody = null,
+                mediaUrl = "https://cdn.example/video?token=${"x".repeat(3000)}",
+                mediaMimeType = "video/mp4",
+            )
+        var selected: NostrEventCardModel? = null
+        composeRule.setContent {
+            selected =
+                (
+                    rememberNostrEventPreviewState(
+                        NostrEventCardState.Loaded(original),
+                        mentionDisplayName = { null },
+                        parseMarkdown = { error("No body to parse") },
+                    ) as NostrEventCardState.Loaded
+                ).card
+        }
+        composeRule.runOnIdle {
+            assertEquals(original.mediaUrl, selected?.mediaUrl)
+            assertEquals(original.mediaMimeType, selected?.mediaMimeType)
+        }
     }
 
     private fun bodyImageDocument(text: String): MarkdownDocumentFfi {

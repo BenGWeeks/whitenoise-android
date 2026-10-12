@@ -57,8 +57,8 @@ private class NostrBodyImageCollector {
         videos: List<String>,
         document: MarkdownDocumentFfi?,
     ): NostrEventMediaCandidates {
-        videos.take(MAX_READER_IMAGES).forEach { add(it, kind = NostrLinkedMediaKind.Video) }
-        metadata.take(MAX_READER_IMAGES * 2).forEach { add(it, kind = NostrLinkedMediaKind.Image) }
+        videos.take(MAX_READER_IMAGES).forEach { add(it, kind = NostrLinkedMediaKind.Video, metadata = true) }
+        metadata.take(MAX_READER_IMAGES * 2).forEach { add(it, kind = NostrLinkedMediaKind.Image, metadata = true) }
         document?.let { blocks(it.blocks, 0) }
         return NostrEventMediaCandidates(
             urls.filterValues { it == NostrLinkedMediaKind.Image }.keys.toList(),
@@ -69,8 +69,11 @@ private class NostrBodyImageCollector {
     private fun add(
         raw: String,
         kind: NostrLinkedMediaKind? = null,
+        metadata: Boolean = false,
     ) {
-        if (urls.size >= MAX_READER_IMAGES || raw.length > IMAGE_DESTINATION_MAX_CHARS) return
+        // Preserve the existing native metadata locator contract, including signed
+        // CDN URLs; the short locator bound applies to additional body discovery.
+        if (urls.size >= MAX_READER_IMAGES || (!metadata && raw.length > IMAGE_DESTINATION_MAX_CHARS)) return
         val safe = safeNostrMediaUrl(raw) ?: return
         val resolved = kind ?: nostrLinkedMediaKind(safe)
         if (resolved != null) urls.putIfAbsent(safe, resolved)
