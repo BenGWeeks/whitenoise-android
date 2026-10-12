@@ -31,6 +31,8 @@ import dev.ipf.marmotkit.MarkdownInlineFfi
 import dev.ipf.marmotkit.MarkdownLinkDestinationKindFfi
 import dev.ipf.marmotkit.MarkdownNostrEntityFfi
 import dev.ipf.marmotkit.MarkdownNostrHrpFfi
+import dev.ipf.whitenoise.android.ui.conversation.messages.colorFromArgb
+import dev.ipf.whitenoise.android.ui.conversation.messages.messageBubblePresentation
 import dev.ipf.whitenoise.android.ui.conversation.nostr.NostrEventCard
 import dev.ipf.whitenoise.android.ui.conversation.nostr.NostrEventCardKind
 import dev.ipf.whitenoise.android.ui.conversation.nostr.NostrEventCardModel
@@ -483,10 +485,9 @@ class NostrEventCardScreenshotTest {
         state: NostrEventCardState,
         mine: Boolean,
     ) {
-        val container =
-            if (mine) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
-        val content =
-            if (mine) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+        val presentation = messageBubblePresentation(deleted = false, mine = mine)
+        val container = colorFromArgb(presentation.backgroundArgb)
+        val content = colorFromArgb(presentation.contentArgb)
         Box(
             modifier = Modifier.fillMaxWidth(),
             contentAlignment = if (mine) Alignment.CenterEnd else Alignment.CenterStart,

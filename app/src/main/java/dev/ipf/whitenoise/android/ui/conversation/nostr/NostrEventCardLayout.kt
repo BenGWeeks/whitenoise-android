@@ -9,8 +9,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imeAnimationTarget
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextButtonDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -56,7 +58,11 @@ internal fun NostrEventCardLayout(
         val loose = constraints.copy(minHeight = 0, maxHeight = ceiling)
         val footer =
             subcompose(CardSlot.Expand) {
-                TextButton(onClick = onExpand, modifier = Modifier.fillMaxWidth().testTag(NOSTR_CARD_EXPAND_TAG)) {
+                TextButton(
+                    onClick = onExpand,
+                    colors = TextButtonDefaults.textButtonColors(contentColor = LocalContentColor.current),
+                    modifier = Modifier.fillMaxWidth().testTag(NOSTR_CARD_EXPAND_TAG),
+                ) {
                     Text(stringResource(R.string.nostr_event_expand))
                 }
             }.single().measure(loose)

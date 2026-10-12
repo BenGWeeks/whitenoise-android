@@ -15,10 +15,12 @@ import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextButtonDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -162,7 +164,7 @@ private fun NostrImageViewport(
                 modifier = Modifier.fillMaxSize().clickable(onClickLabel = description, onClick = onOpen),
             )
         }
-        if (presentation.loading) CircularProgressIndicator()
+        if (presentation.loading) CircularProgressIndicator(color = LocalContentColor.current)
         if (presentation.failed) {
             Text(stringResource(R.string.nostr_event_image_failed), maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
@@ -176,7 +178,16 @@ private fun NostrImageAction(
     modifier: Modifier,
     onClick: () -> Unit,
 ) {
-    TextButton(enabled = !presentation.loading, onClick = onClick, modifier = modifier) {
+    TextButton(
+        enabled = !presentation.loading,
+        onClick = onClick,
+        colors =
+            TextButtonDefaults.textButtonColors(
+                contentColor = LocalContentColor.current,
+                disabledContentColor = LocalContentColor.current.copy(alpha = NOSTR_IMAGE_DISABLED_ACTION_ALPHA),
+            ),
+        modifier = modifier,
+    ) {
         Text(
             if (presentation.failed) stringResource(R.string.retry) else description,
             maxLines = 2,
@@ -211,3 +222,5 @@ private fun NostrFullscreenImage(
 }
 
 private const val IMAGE_WIDTH_PX = 1440
+
+private const val NOSTR_IMAGE_DISABLED_ACTION_ALPHA = 0.38f

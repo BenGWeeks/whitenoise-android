@@ -21,6 +21,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextButtonDefaults
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -323,7 +324,9 @@ private fun LoadedEventCard(
             NostrEventImagePane(url = url, compact = true)
         }
         if (card.mediaUrl != null) {
-            TextButton(onClick = onPlayVideo) { Text(stringResource(R.string.nostr_event_play_video)) }
+            TextButton(onClick = onPlayVideo, colors = TextButtonDefaults.textButtonColors(contentColor = contentColor)) {
+                Text(stringResource(R.string.nostr_event_play_video))
+            }
         }
     }
 }
