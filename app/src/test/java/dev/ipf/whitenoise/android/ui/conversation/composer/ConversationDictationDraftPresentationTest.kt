@@ -25,6 +25,7 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
+import com.github.takahirom.roborazzi.captureRoboImage
 import dev.ipf.whitenoise.android.R
 import dev.ipf.whitenoise.android.audio.ConversationDictationController
 import dev.ipf.whitenoise.android.audio.ConversationDictationDraftSnapshot
@@ -211,6 +212,9 @@ class ConversationDictationDraftPresentationTest {
                 .assertIsDisplayed()
             composeRule.onNodeWithTag("dictation-recovery-panel").assertDoesNotExist()
             composeRule.onNodeWithContentDescription(context.getString(R.string.dictate_text)).assertIsDisplayed()
+            composeRule
+                .onNodeWithTag("dictation-composer")
+                .captureRoboImage("src/test/snapshots/dictation_retained_compact_composer.png")
             composeRule.onNode(hasSetTextAction()).performTextReplacement("Edited message")
             composeRule.onNodeWithContentDescription(context.getString(R.string.send)).performClick()
             composeRule.runOnIdle { f.lateSendAcceptance.invoke() }
@@ -257,6 +261,10 @@ class ConversationDictationDraftPresentationTest {
                 .fetchSemanticsNode()
                 .config[SemanticsActions.CustomActions]
         assertEquals(context.getString(R.string.composer_collapse), expandedActions.single().label)
+        composeRule.onNodeWithTag("dictation-recovery-status").assertDoesNotExist()
+        composeRule
+            .onNodeWithTag("dictation-composer")
+            .captureRoboImage("src/test/snapshots/dictation_retained_expanded_composer.png")
         composeRule
             .onNodeWithContentDescription(context.getString(R.string.dictate_text))
             .assertIsDisplayed()
