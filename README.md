@@ -111,7 +111,8 @@ failed suite cannot trigger a second full test execution. The existing
 `Compile, test, ktlint, detekt, Android lint` check aggregates every job, including
 the offline ZSP contract, and fails if any dependency fails or is cancelled.
 It accepts the Play-check skip outside PRs and the draft skips above only when
-the event itself is a non-PR event or a draft PR.
+the event itself is a non-PR event or a draft PR. On drafts it reports as
+`… (draft fast lane)`, so the required context comes only from a ready run.
 A successful docs-only classifier permits only the explicitly named Android
 job skips on a PR. All tooling/manual-guide/metadata validators still run, and
 missing classification or unexpected skips fail the aggregate. Lightweight

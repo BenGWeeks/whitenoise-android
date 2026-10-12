@@ -839,8 +839,11 @@ jobs:
   # secondary-variant runs only on ready PRs, compose-compiler is skipped for
   # deferred campaigns and drafts. Missing outputs, unexpected skips, failures
   # and cancellations remain red.
+  # Drafts report under a different name. A green draft result must never be
+  # the latest required check on a head that is then marked ready, because the
+  # ready run creates this job only after its heavy lanes finish.
   validate:
-    name: Compile, test, ktlint, detekt, Android lint
+    name: Compile, test, ktlint, detekt, Android lint${{ github.event.pull_request.draft && ' (draft fast lane)' || '' }}
     needs: [changes, tooling-contracts, offline-zsp, build-contracts, compose-compiler, static-analysis, tests, secondary-variant]
     if: always()
     runs-on: ubuntu-latest

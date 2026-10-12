@@ -97,7 +97,8 @@ class AndroidCiGateTest(unittest.TestCase):
         jobs = set(re.findall(r'^  ([a-z][a-z-]+):$', self.workflow.split('\njobs:\n', 1)[1], re.MULTILINE))
         self.assertEqual(set(self.dependencies), jobs - {'validate'})
         self.assertIn('    if: always()\n', self.gate)
-        self.assertIn('    name: Compile, test, ktlint, detekt, Android lint\n', self.gate)
+        self.assertIn("    name: Compile, test, ktlint, detekt, Android lint${{ github.event.pull_request.draft "
+                      "&& ' (draft fast lane)' || '' }}\n", self.gate)
         self.assertIn('JOB_RESULTS: ${{ toJSON(needs) }}', self.gate)
         self.assertNotIn('continue-on-error:', self.gate)
 
@@ -431,6 +432,9 @@ class AndroidCiGateTest(unittest.TestCase):
         """A diff touching only a Gradle-declared script input still starts release checks."""
         scripts = set(re.findall(r'inputs\.file\(rootProject\.file\("(scripts/[^"]+)"\)\)', self.app_build))
         self.assertIn('scripts/prepare_marmotkit_artifact.py', scripts)
+        # Compose stability configuration changes the release bytecode.
+        scripts |= set(re.findall(r'stabilityConfigurationFiles\.add\([^)]*file\("([^"]+)"\)', self.app_build))
+        self.assertIn('config/compose-stability.conf', scripts)
         for name in ('android-release-runtime.yml', 'android-repro-verify.yml'):
             triggers = pr_paths(WORKFLOW.with_name(name).read_text())
             for script in sorted(scripts):
@@ -533,6 +537,17 @@ class AndroidCiGateTest(unittest.TestCase):
             self.assertIn('!github.event.pull_request.draft', self.named_step(self.tests_job, name))
         self.assertNotIn('draft', self.named_step(self.tests_job, 'Unit tests'))
         self.assertIn('PR_DRAFT: ${{ github.event.pull_request.draft == true }}', self.gate)
+
+    def test_draft_aggregate_never_reports_the_required_context(self):
+        """A ready run must not inherit a green draft result for the same head."""
+        name = re.search(r'^    name: (.+)$', self.gate, re.MULTILINE).group(1)
+        required = 'Compile, test, ktlint, detekt, Android lint'
+        static, expression = name.split('${{', 1)
+        self.assertEqual(static, required)
+        draft, ready = re.fullmatch(
+            r" github\.event\.pull_request\.draft && '([^']*)' \|\| '([^']*)' }}", expression).groups()
+        self.assertNotEqual(static + draft, required)
+        self.assertEqual(static + ready, required)
 
     def test_pull_requests_run_one_full_variant_and_compile_the_other(self):
         self.assertIn("github.event_name == 'pull_request'", self.secondary.split('    steps:', 1)[0])

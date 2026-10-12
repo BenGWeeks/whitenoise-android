@@ -32,6 +32,7 @@ on:
       - 'gradle/**'
       - 'gradlew'
       - 'config/android-release.properties'
+      - 'config/compose-stability.conf'
       - 'scripts/release*'
       - 'scripts/repro-ci.sh'
       - 'scripts/repro-verify.sh'

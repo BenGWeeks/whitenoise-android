@@ -91,7 +91,10 @@ signer contract, Zapstore lint and unit/screenshot tests, compilation, ktlint an
 detekt. They defer coverage, baseline packaging, Compose reports, the Play check,
 emulator workflows and release verification. `ready_for_review` starts a new run
 with every applicable lane, so the required aggregate is recomputed for the ready
-head. The aggregate accepts the draft skips only when the event is a draft PR.
+head. The aggregate accepts the draft skips only when the event is a draft PR,
+and on drafts it reports as `Compile, test, ktlint, detekt, Android lint (draft
+fast lane)`. The required context therefore comes only from a ready run, so a
+green draft result cannot satisfy it after the PR is marked ready.
 Do not rely on a green draft run for readiness; wait for the ready run.
 The visual-description updater follows opening, reopening and pushes and displays at most
 four inline comparisons, retaining links and the bounded list of all changes.

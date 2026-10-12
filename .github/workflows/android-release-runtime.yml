@@ -28,6 +28,7 @@ on:
       - 'gradle/**'
       - 'gradlew'
       - 'config/android-release.properties'
+      - 'config/compose-stability.conf'
       - 'scripts/release*'
       - 'scripts/verify-release-runtime.sh'
       - 'scripts/verify_notice_resources.py'
