@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -20,7 +21,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextButtonDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -182,7 +182,7 @@ private fun NostrImageAction(
         enabled = !presentation.loading,
         onClick = onClick,
         colors =
-            TextButtonDefaults.textButtonColors(
+            ButtonDefaults.textButtonColors(
                 contentColor = LocalContentColor.current,
                 disabledContentColor = LocalContentColor.current.copy(alpha = NOSTR_IMAGE_DISABLED_ACTION_ALPHA),
             ),

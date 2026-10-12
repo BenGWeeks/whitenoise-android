@@ -16,12 +16,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextButtonDefaults
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -324,7 +324,7 @@ private fun LoadedEventCard(
             NostrEventImagePane(url = url, compact = true)
         }
         if (card.mediaUrl != null) {
-            TextButton(onClick = onPlayVideo, colors = TextButtonDefaults.textButtonColors(contentColor = contentColor)) {
+            TextButton(onClick = onPlayVideo, colors = ButtonDefaults.textButtonColors(contentColor = contentColor)) {
                 Text(stringResource(R.string.nostr_event_play_video))
             }
         }
