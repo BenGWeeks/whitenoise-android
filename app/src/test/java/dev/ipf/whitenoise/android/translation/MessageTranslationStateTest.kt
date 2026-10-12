@@ -115,6 +115,24 @@ class MessageTranslationStateTest {
         }
 
     @Test
+    fun automaticQueueSaturationKeepsCapacityForAManualDifferentTarget() =
+        runTest {
+            val response = CompletableDeferred<String>()
+            val session = session(backgroundScope) { response.await() }
+            repeat(16) { session.request(source.copy(messageId = "automatic-$it"), automatic = true) }
+            runCurrent()
+            assertEquals(15, (0 until 16).count { session.isPending(source.copy(messageId = "automatic-$it")) })
+            val manual = source.copy(messageId = "manual", target = "fr")
+            session.request(manual, from = "en")
+            assertTrue(session.isPending(manual))
+            session.request(source.copy(messageId = "extra-automatic"), automatic = true)
+            assertFalse(session.isPending(source.copy(messageId = "extra-automatic")))
+            response.complete("translated")
+            runCurrent()
+            assertEquals("translated", session.renditions[manual]?.text)
+        }
+
+    @Test
     fun explicitManualSourceReplacesAutomaticWorkAndRejectsItsLateResult() =
         runTest {
             val automatic = CompletableDeferred<String>()

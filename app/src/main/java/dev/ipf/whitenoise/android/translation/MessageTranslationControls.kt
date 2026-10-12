@@ -138,6 +138,7 @@ internal fun MessageTranslationDialog(
                     source?.let {
                         onTargetSelected(target)
                         session.retry()
+                        session.remove(it)
                         session.remove(it.copy(target = target))
                         session.request(it.copy(target = target), from)
                     }

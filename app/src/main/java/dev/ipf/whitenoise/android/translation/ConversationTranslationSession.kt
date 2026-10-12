@@ -62,7 +62,9 @@ internal class ConversationTranslationSession(
         source: TranslationSource,
         automatic: Boolean,
     ): Boolean {
-        val occupied = source in pending || source in renditions || pending.size >= MAX_PENDING_REQUESTS
+        // Automatic window work leaves one bounded queue entry for an explicit user action.
+        val pendingLimit = if (automatic) MAX_PENDING_REQUESTS - 1 else MAX_PENDING_REQUESTS
+        val occupied = source in pending || source in renditions || pending.size >= pendingLimit
         val paused = automatic && failure != null
         return ownerCurrent() && !occupied && !paused
     }
