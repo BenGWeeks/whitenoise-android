@@ -890,8 +890,15 @@ internal class ConversationDictationController internal constructor(
         draft: TextFieldValue,
         replyToMessageIdHex: String?,
     ): ConversationDictationComposerAccess {
+        if (!runCatching { targetAvailable(accountRef, groupIdHex) }.getOrDefault(false)) {
+            return composerAccess(accountRef, groupIdHex).copy(
+                phase = ConversationDictationComposerPhase.TargetUnavailable,
+            )
+        }
         val previousRevision = completionRevision(accountRef, groupIdHex)
-        (state as? ConversationDictationState.Failed)?.let { finishFailedToDraft(it.sessionId) }
+        (state as? ConversationDictationState.Failed)
+            ?.takeIf { it.target.matchesConversation(accountRef, groupIdHex) }
+            ?.let { finishFailedToDraft(it.sessionId) }
         val startingDraft =
             if (completionRevision(accountRef, groupIdHex) != previousRevision) {
                 runCatching { readDraft(accountRef, groupIdHex).value }.getOrNull()

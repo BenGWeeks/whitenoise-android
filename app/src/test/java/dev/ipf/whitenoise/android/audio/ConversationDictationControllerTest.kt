@@ -103,6 +103,44 @@ class ConversationDictationControllerTest {
         f.controller.cancel()
     }
 
+    /** Another conversation's fresh gesture is not consent to discard an unparked failed recording. */
+    @Test
+    fun freshGestureInAnotherChatCannotDiscardUnparkedFailedAudio() {
+        val f = fixture(draft = TextFieldValue(""))
+        failRecognizedTail(f, send = false)
+        f.platform.tracksCallerAudioDisposal = true
+        val failed = f.controller.state
+        val discarded = f.platform.discardedCallerAudio
+        val generations = f.platform.sessions.size
+        val other = ACCOUNT to "another-chat"
+        f.drafts[other] = TextFieldValue("Other draft")
+        val access = f.controller.requestFreshComposerStart(ACCOUNT, other.second, f.drafts.getValue(other), null)
+        assertEquals(ConversationDictationComposerPhase.OtherConversation, access.phase)
+        assertEquals(failed, f.controller.state)
+        assertEquals(discarded, f.platform.discardedCallerAudio)
+        assertEquals(generations, f.platform.sessions.size)
+        assertTrue(f.platform.pendingCallerAudio)
+        assertEquals("first", f.drafts.getValue(key()).text)
+        assertEquals("Other draft", f.drafts.getValue(other).text)
+    }
+
+    /** A rejected origin check cannot retire retained audio before a replacement can start. */
+    @Test
+    fun unavailableOriginFreshGesturePreservesItsParkedTake() {
+        var available = true
+        val f = fixture(draft = TextFieldValue(""), targetAvailable = { available })
+        f.platform.allowAudioParking = true
+        failRecognizedTail(f, send = false)
+        available = false
+        val generations = f.platform.sessions.size
+        val access = f.controller.requestFreshComposerStart(ACCOUNT, GROUP, f.drafts.getValue(key()), null)
+        assertEquals(ConversationDictationComposerPhase.TargetUnavailable, access.phase)
+        assertTrue(f.controller.hasParkedComposerAudio(ACCOUNT, GROUP))
+        assertEquals(0, f.platform.parkedAudioDiscards)
+        assertEquals(generations, f.platform.sessions.size)
+        assertEquals("first", f.drafts.getValue(key()).text)
+    }
+
     /** An unavailable draft save cannot be silently aborted; verified local text can settle safely. */
     @Test
     fun noDialogSettlementPreservesUnsavedWordsUntilTheirDraftWriteSucceeds() {

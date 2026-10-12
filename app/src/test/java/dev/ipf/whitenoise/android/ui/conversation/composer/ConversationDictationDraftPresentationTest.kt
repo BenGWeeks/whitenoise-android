@@ -124,7 +124,7 @@ class ConversationDictationDraftPresentationTest {
 
     @Test
     fun submittedPrefixClearsMountedEditorAndAudioRetryKeepsNewEditsWithoutResending() {
-        // Refused parking keeps the explicit partial-send confirmation path available.
+        // Refused parking preserves the explicit controller recovery path without rendering a dialog.
         val f = Fixture(dispatchRecognized = true, allowParking = false)
         composeRule.setContent { f.RenderComposer() }
         composeRule.runOnIdle {
