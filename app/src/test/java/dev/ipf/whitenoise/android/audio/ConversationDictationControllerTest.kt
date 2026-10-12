@@ -118,9 +118,9 @@ class ConversationDictationControllerTest {
         assertTrue(f.controller.hasDurableSession)
     }
 
-    /** Foreground refresh can replace the failure snapshot but not its native closure identity. */
+    /** Foreground refresh must not disarm the outstanding native closure or its recovery transfer. */
     @Test
-    fun delayedClosureParksTheCurrentEmptyFailureAfterForegroundRefresh() {
+    fun delayedClosureStillParksEmptyFailureAfterForegroundRefresh() {
         val f = fixture(draft = TextFieldValue(""), platform = FakePlatform(deferCaptureCompletion = true))
         f.platform.allowAudioParking = true
         f.platform.pendingCallerAudio = true
@@ -132,7 +132,7 @@ class ConversationDictationControllerTest {
         val oldSnapshot = f.controller.state
         val close = requireNotNull(f.platform.callerAudioFinishCallback)
         f.controller.onAppForegrounded()
-        assertFalse(oldSnapshot === f.controller.state)
+        assertEquals(oldSnapshot, f.controller.state)
         assertTrue(f.controller.foregroundMicrophoneRequired)
         assertFalse(f.controller.hasParkedComposerAudio(ACCOUNT, GROUP))
         f.platform.deferCallerAudioFinish = false

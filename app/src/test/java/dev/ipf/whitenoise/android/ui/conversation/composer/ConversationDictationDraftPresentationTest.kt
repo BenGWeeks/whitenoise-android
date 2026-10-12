@@ -174,8 +174,12 @@ class ConversationDictationDraftPresentationTest {
             assertTrue(f.keptAudio)
             assertTrue(f.controller.state is ConversationDictationState.Idle)
             f.lateSendAcceptance.invoke()
-            assertEquals("", f.draft.text)
+            assertEquals("", f.editor.valueState.value.text)
+            // AppState clears the durable draft separately, only after MDK accepts the send.
+            assertEquals("Draft recognized", f.draft.text)
+            f.edit(TextFieldValue(""))
         }
+        composeRule.runOnIdle { assertEquals("", f.draft.text) }
         composeRule.onNode(hasSetTextAction()).performTextReplacement("New edit")
         composeRule.onNodeWithContentDescription(context.getString(R.string.dictate_text)).performClick()
         composeRule.onNodeWithText(context.getString(R.string.dictation_retry_remaining)).performClick()
