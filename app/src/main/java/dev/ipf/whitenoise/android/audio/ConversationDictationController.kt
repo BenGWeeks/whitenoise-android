@@ -2840,11 +2840,17 @@ internal class ConversationDictationController internal constructor(
         val onClosed: () -> Unit = {
             finishPlaybackInterruption(sessionId)
             acknowledgeCaptureClosed(sessionId, captureGeneration)
-            if (state === failed && notificationSessionToken == token) {
+            val currentFailure =
+                (state as? ConversationDictationState.Failed)?.takeIf {
+                    it.sessionId == sessionId &&
+                        captureClosureGeneration == captureGeneration &&
+                        notificationSessionToken == token
+                }
+            if (currentFailure != null) {
                 val retainedAudio = runCatching(platform::callerAudioHasPending).getOrDefault(true)
-                handRecoveryToComposer(failed)
-                parkClosedRecovery(failed)
-                if (!retainedAudio && failed.retainedTranscript.isNullOrBlank()) releaseDurableSessionLease()
+                handRecoveryToComposer(currentFailure)
+                parkClosedRecovery(currentFailure)
+                if (!retainedAudio && currentFailure.retainedTranscript.isNullOrBlank()) releaseDurableSessionLease()
             }
         }
         captureClosureTimeoutHandle?.cancel()
@@ -2891,7 +2897,7 @@ internal class ConversationDictationController internal constructor(
             )
         val parked = keepComposerAudioForLater(access)
         conversationDictationDiagnostic(
-            "event=recovery_owner_release outcome=${if (parked) "parked" else "protected"}",
+            "event=recovery_owner_release session=${failed.sessionId} outcome=${if (parked) "parked" else "protected"}",
         )
     }
 

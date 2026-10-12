@@ -125,7 +125,8 @@ class ConversationDictationDraftPresentationTest {
 
     @Test
     fun submittedPrefixClearsMountedEditorAndAudioRetryKeepsNewEditsWithoutResending() {
-        val f = Fixture(dispatchRecognized = true)
+        // Refused parking keeps the explicit partial-send confirmation path available.
+        val f = Fixture(dispatchRecognized = true, allowParking = false)
         composeRule.setContent { f.RenderComposer() }
         composeRule.runOnIdle {
             f.pendingAudio = true
@@ -158,6 +159,38 @@ class ConversationDictationDraftPresentationTest {
             assertEquals("New edit tail", f.draft.text)
             assertEquals(listOf("Draft recognized"), f.dictationSends)
             assertTrue(f.controller.state is ConversationDictationState.Idle)
+        }
+    }
+
+    /** Normal Send consumes recovered text; the parked receipt only appends the later tail to fresh edits. */
+    @Test
+    fun ordinarySendAfterAutomaticParkingDoesNotResubmitThePrefixOnAudioRetry() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val f = Fixture()
+        composeRule.setContent { f.RenderComposer() }
+        composeRule.runOnIdle { f.retainTail() }
+        composeRule.onNodeWithContentDescription(context.getString(R.string.send)).performClick()
+        composeRule.runOnIdle {
+            assertTrue(f.keptAudio)
+            assertTrue(f.controller.state is ConversationDictationState.Idle)
+            f.lateSendAcceptance.invoke()
+            assertEquals("", f.draft.text)
+        }
+        composeRule.onNode(hasSetTextAction()).performTextReplacement("New edit")
+        composeRule.onNodeWithContentDescription(context.getString(R.string.dictate_text)).performClick()
+        composeRule.onNodeWithText(context.getString(R.string.dictation_retry_remaining)).performClick()
+        composeRule.runOnIdle {
+            f.runRestart()
+            f.pendingAudio = false
+            f.result("tail")
+        }
+        composeRule.onNodeWithText("New edit tail").assertExists()
+        composeRule.runOnIdle {
+            assertEquals(listOf("Draft recognized"), f.sent)
+            assertTrue(f.dictationSends.isEmpty())
+            assertEquals("New edit tail", f.draft.text)
+            assertTrue(f.controller.state is ConversationDictationState.Idle)
+            assertFalse(f.controller.hasParkedComposerAudio(ACCOUNT, GROUP))
         }
     }
 
@@ -199,7 +232,7 @@ class ConversationDictationDraftPresentationTest {
     @Test
     fun expandedComposerSettingsReturnOffersDraftOnlyRemainingAudioRetry() {
         val context = ApplicationProvider.getApplicationContext<Context>()
-        val f = Fixture(dispatchRecognized = true)
+        val f = Fixture(dispatchRecognized = true, allowParking = false)
         composeRule.setContent { f.RenderComposer() }
         composeRule.onNode(hasSetTextAction()).performClick()
         val expand =
@@ -289,11 +322,20 @@ class ConversationDictationDraftPresentationTest {
             val availabilityReads = f.targetAvailabilityReads
             oldDictate()
             assertEquals(availabilityReads, f.targetAvailabilityReads)
-            assertTrue(f.pendingAudio)
-            assertTrue(f.controller.state is ConversationDictationState.Failed)
+            assertFalse(f.pendingAudio)
+            assertTrue(f.keptAudio)
+            assertTrue(f.controller.state is ConversationDictationState.Idle)
         }
         composeRule.onNodeWithContentDescription(context.getString(R.string.dictate_text)).performClick()
-        composeRule.onNodeWithText(context.getString(R.string.dictation_original_conversation)).assertIsDisplayed()
+        composeRule.onNodeWithTag("dictation-recovery-panel").assertDoesNotExist()
+        composeRule.runOnIdle {
+            assertEquals(
+                "other",
+                f.controller.state.target
+                    ?.groupIdHex,
+            )
+            assertTrue(f.keptAudio)
+        }
     }
 
     private class Fixture(

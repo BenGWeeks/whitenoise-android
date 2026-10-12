@@ -95,7 +95,7 @@ class ConversationDictationControllerTest {
     /** Closure, not elapsed time or recognizer destruction, authorizes automatic owner release. */
     @Test
     fun automaticParkingWaitsForNativeClosureAndRejectsItsLateCallback() {
-        val f = fixture(draft = TextFieldValue(""))
+        val f = fixture(draft = TextFieldValue(""), platform = FakePlatform(deferCaptureCompletion = true))
         f.platform.allowAudioParking = true
         f.platform.deferCallerAudioFinish = true
         failRecognizedTail(f, send = false)
@@ -116,6 +116,31 @@ class ConversationDictationControllerTest {
         assertEquals(replacement, f.controller.state)
         assertTrue(f.controller.foregroundMicrophoneRequired)
         assertTrue(f.controller.hasDurableSession)
+    }
+
+    /** Foreground refresh can replace the failure snapshot but not its native closure identity. */
+    @Test
+    fun delayedClosureParksTheCurrentEmptyFailureAfterForegroundRefresh() {
+        val f = fixture(draft = TextFieldValue(""), platform = FakePlatform(deferCaptureCompletion = true))
+        f.platform.allowAudioParking = true
+        f.platform.pendingCallerAudio = true
+        f.platform.deferCallerAudioFinish = true
+        f.controller.requestStart(ACCOUNT, GROUP, f.drafts.getValue(key()))
+        f.controller.paste()
+        f.platform.session.callerAudioFinalChunk = true
+        f.platform.listener.onError(ConversationDictationFailure.NoMatch)
+        val oldSnapshot = f.controller.state
+        val close = requireNotNull(f.platform.callerAudioFinishCallback)
+        f.controller.onAppForegrounded()
+        assertFalse(oldSnapshot === f.controller.state)
+        assertTrue(f.controller.foregroundMicrophoneRequired)
+        assertFalse(f.controller.hasParkedComposerAudio(ACCOUNT, GROUP))
+        f.platform.deferCallerAudioFinish = false
+        close()
+        assertTrue(f.controller.state is ConversationDictationState.Idle)
+        assertTrue(f.controller.hasParkedComposerAudio(ACCOUNT, GROUP))
+        assertFalse(f.controller.hasDurableSession)
+        assertEquals("", f.drafts.getValue(key()).text)
     }
 
     /** An accepted later recovery write can retire a closed owner; a rejected write cannot. */
@@ -162,7 +187,7 @@ class ConversationDictationControllerTest {
             f.drafts[ACCOUNT to group] = TextFieldValue("")
             f.platform.pendingCallerAudio = true
             assertTrue(f.controller.requestStart(ACCOUNT, group, TextFieldValue("")))
-            f.scheduler.runDelay(500L)
+            if (index > 0) f.scheduler.runDelay(500L)
             f.controller.paste()
             f.platform.session.callerAudioFinalChunk = true
             f.platform.listener.onError(ConversationDictationFailure.NoMatch)
@@ -192,7 +217,11 @@ class ConversationDictationControllerTest {
         )
         f.controller.requestComposerStart(ACCOUNT, other.second, f.drafts.getValue(other), null)
         f.scheduler.runDelay(500L)
-        assertEquals(other.second, f.controller.state.target?.groupIdHex)
+        assertEquals(
+            other.second,
+            f.controller.state.target
+                ?.groupIdHex,
+        )
         assertEquals("Other draft", f.drafts.getValue(other).text)
     }
 
@@ -5239,7 +5268,9 @@ class ConversationDictationControllerTest {
         send: Boolean,
     ) {
         fixture.platform.pendingCallerAudio = true
+        val created = fixture.platform.sessions.size
         fixture.controller.requestStart(ACCOUNT, GROUP, fixture.drafts.getValue(key()))
+        if (fixture.platform.sessions.size == created) fixture.scheduler.runDelay(500L)
         fixture.platform.listener.onResult("first")
         fixture.scheduler.runDelay(500L)
         if (send) fixture.controller.send() else fixture.controller.paste()

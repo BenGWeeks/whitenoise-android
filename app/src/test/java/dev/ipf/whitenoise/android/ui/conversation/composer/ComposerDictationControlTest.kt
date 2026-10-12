@@ -48,6 +48,8 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
+private typealias DictationListener = ConversationDictationRecognitionListener
+
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36], qualifiers = "w320dp-h640dp-mdpi")
 class ComposerDictationControlTest {
@@ -395,9 +397,7 @@ class ComposerDictationControlTest {
             }
         }
 
-        override fun createSession(
-            listener: ConversationDictationRecognitionListener,
-        ): ConversationDictationRecognitionSession {
+        override fun createSession(listener: DictationListener): ConversationDictationRecognitionSession {
             this.listener = listener
             return object : ConversationDictationRecognitionSession {
                 override fun start() = Unit
