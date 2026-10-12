@@ -902,17 +902,18 @@ internal class ConversationDictationController internal constructor(
         val startingDraft =
             if (completionRevision(accountRef, groupIdHex) != previousRevision) {
                 runCatching { readDraft(accountRef, groupIdHex).value }.getOrNull()
-                    ?: return composerAccess(accountRef, groupIdHex)
             } else {
                 draft
             }
-        if (state is ConversationDictationState.Idle && !foregroundMicrophoneRequired) {
-            val key = ConversationDictationKey.from(accountRef, groupIdHex)
-            parkedRecoveries[key]?.let { parked ->
-                if (runCatching { parked.audio.discard() }.isSuccess) parkedRecoveries.remove(key)
+        return startingDraft?.let { value ->
+            if (state is ConversationDictationState.Idle && !foregroundMicrophoneRequired) {
+                val key = ConversationDictationKey.from(accountRef, groupIdHex)
+                parkedRecoveries[key]?.let { parked ->
+                    if (runCatching { parked.audio.discard() }.isSuccess) parkedRecoveries.remove(key)
+                }
             }
-        }
-        return requestComposerStart(accountRef, groupIdHex, startingDraft, replyToMessageIdHex)
+            requestComposerStart(accountRef, groupIdHex, value, replyToMessageIdHex)
+        } ?: composerAccess(accountRef, groupIdHex)
     }
 
     /** Paste recovered text or end an empty attempt; never treat an uncertain send as cancelled. */
