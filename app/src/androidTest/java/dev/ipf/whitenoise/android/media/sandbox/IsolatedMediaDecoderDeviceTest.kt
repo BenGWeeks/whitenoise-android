@@ -38,7 +38,8 @@ class IsolatedMediaDecoderDeviceTest {
             assertTrue(worker.isolated)
             assertFalse(worker.internetGranted)
             assertFalse(worker.runtimeInitialized)
-            assertTrue(worker.privateCanaryDenied)
+            assertTrue(canary.isFile)
+            assertTrue("Private canary must stay inaccessible (errno=${worker.privateCanaryErrno})", worker.privateCanaryDenied)
             val jpeg = requireNotNull(IsolatedMediaDecoder.decode(imageBytes(Bitmap.CompressFormat.JPEG, Color.RED), 2))
             try {
                 assertTrue(Color.red(jpeg.getPixel(0, 0)) >= 250)

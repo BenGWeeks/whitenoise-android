@@ -62,7 +62,7 @@ class MediaDecodeService : Service() {
 
     @Suppress("DEPRECATION", "ReturnCount") // Legacy framework descriptors and fail-closed operation guards.
     private fun execute(data: Bundle): Bundle {
-        val response = isolationResponse()
+        val response = isolationResponse(data)
         val input = data.getParcelable<ParcelFileDescriptor>("input") ?: return response
         val output = data.getParcelable<SharedMemory>("output") ?: return response.also { input.close() }
         input.use {
@@ -77,11 +77,18 @@ class MediaDecodeService : Service() {
         }
     }
 
-    private fun isolationResponse(): Bundle =
+    private fun isolationResponse(data: Bundle): Bundle =
         Bundle().apply {
             putInt("uid", Process.myUid())
             putBoolean("isolated", Process.isIsolated())
-            putBoolean("privateCanaryDenied", privateCanaryDenied())
+            val canaryErrno = privateCanaryErrno(data)
+            putInt("privateCanaryErrno", canaryErrno)
+            putBoolean(
+                "privateCanaryDenied",
+                canaryErrno == android.system.OsConstants.EACCES ||
+                    canaryErrno == android.system.OsConstants.EPERM ||
+                    canaryErrno == android.system.OsConstants.ENOENT,
+            )
             val app = application as dev.ipf.whitenoise.android.WhiteNoiseApplication
             putBoolean("runtimeInitialized", app.initializedAppState() != null)
             val permission = checkSelfPermission(android.Manifest.permission.INTERNET)
@@ -191,8 +198,8 @@ class MediaDecodeService : Service() {
         response: Bundle,
     ) {
         try {
-            if (config != Bitmap.Config.ARGB_8888 || rowBytes != width * Int.SIZE_BYTES) return
-            if (hasAlpha() && !isPremultiplied) return
+            val alphaSupported = !hasAlpha() || isPremultiplied
+            if (config != Bitmap.Config.ARGB_8888 || rowBytes != width * Int.SIZE_BYTES || !alphaSupported) return
             val count = MediaDecodePolicy.pixelBytes(width, height, edge, output.size) ?: return
             val buffer = output.mapReadWrite()
             try {
@@ -209,19 +216,15 @@ class MediaDecodeService : Service() {
         }
     }
 
-    private fun privateCanaryDenied(): Boolean {
-        if (!dev.ipf.whitenoise.android.BuildConfig.DEBUG) return false
+    private fun privateCanaryErrno(data: Bundle): Int {
+        val path = data.getString("canaryPath")
+        if (!dev.ipf.whitenoise.android.BuildConfig.DEBUG || path?.endsWith("/files/media-containment-canary") != true) return -1
         return try {
-            val descriptor =
-                android.system.Os.open(
-                    java.io.File(applicationInfo.dataDir, "files/media-containment-canary").path,
-                    android.system.OsConstants.O_RDONLY,
-                    0,
-                )
+            val descriptor = android.system.Os.open(path, android.system.OsConstants.O_RDONLY, 0)
             android.system.Os.close(descriptor)
-            false
+            0
         } catch (error: android.system.ErrnoException) {
-            error.errno == android.system.OsConstants.EACCES || error.errno == android.system.OsConstants.EPERM
+            error.errno
         }
     }
 

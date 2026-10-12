@@ -21,7 +21,7 @@ import java.io.ByteArrayOutputStream
 class AttachmentAnimationIntentTest {
     @Test
     fun admittedGifKeepsFirstFrameUntilTheViewerCanAnimate() =
-        runBlocking {
+        runBlocking<Unit> {
             val bytes = twoFrameGif()
             val still = decodeMessageAttachmentImage(bytes, "image/png", 128) as DecodedAttachmentPresentation.Static
             try {
@@ -37,7 +37,7 @@ class AttachmentAnimationIntentTest {
 
     @Test
     fun staticPhotoNeverRequestsPromotionEvenWithMisleadingMime() =
-        runBlocking {
+        runBlocking<Unit> {
             val source = Bitmap.createBitmap(2, 2, Bitmap.Config.ARGB_8888)
             val bytes =
                 try {

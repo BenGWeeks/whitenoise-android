@@ -97,6 +97,8 @@ internal class IsolatedMediaTransport(
 
     @Volatile private var closed = false
 
+    private var bindingLost = false
+
     @Volatile private var pending: Reply? = null
 
     private fun responseCapability(current: Reply): Messenger =
@@ -142,21 +144,27 @@ internal class IsolatedMediaTransport(
                 name: ComponentName,
                 service: IBinder,
             ) {
-                if (closed || connection !== this) return
-                remote = Messenger(service)
-                if (startupTimedOut) {
-                    startupTimedOut = false
-                    poisoned = false // No codec request was sent; this same late connection is reusable.
+                synchronized(bindingLock) {
+                    if (closed || connection !== this) return
+                    remote = Messenger(service)
+                    bindingLost = false
+                    if (startupTimedOut) {
+                        startupTimedOut = false
+                        poisoned = false // No codec request was sent; this same late connection is reusable.
+                    }
+                    pending?.connected?.countDown()
                 }
-                pending?.connected?.countDown()
             }
 
             override fun onServiceDisconnected(name: ComponentName) {
-                if (closed || connection !== this) return
-                remote = null
-                poisoned = false // Only a current system death notification reopens admission.
-                pending?.ready?.countDown()
-                pending?.connected?.countDown()
+                synchronized(bindingLock) {
+                    if (closed || connection !== this) return
+                    remote = null
+                    bindingLost = true
+                    poisoned = false // Only a current system death notification reopens admission.
+                    pending?.ready?.countDown()
+                    pending?.connected?.countDown()
+                }
             }
 
             override fun onBindingDied(name: ComponentName) = onServiceDisconnected(name)
@@ -387,6 +395,10 @@ internal class IsolatedMediaTransport(
                     replyTo = responseCapability(reply)
                     data =
                         Bundle().apply {
+                            if (dev.ipf.whitenoise.android.BuildConfig.DEBUG) {
+                                val canary = File(context.filesDir, "media-containment-canary")
+                                if (canary.isFile) putString("canaryPath", canary.absolutePath)
+                            }
                             putInt("version", MediaDecodePolicy.VERSION)
                             putInt("operation", request.operation)
                             putInt("edge", request.edge)
@@ -442,6 +454,7 @@ internal class IsolatedMediaTransport(
             if (bound) connection?.let(context::unbindService)
             val selected = newConnection()
             connection = selected
+            bindingLost = false
             bound =
                 context.bindIsolatedService(
                     Intent(context, MediaDecodeService::class.java),
@@ -454,13 +467,14 @@ internal class IsolatedMediaTransport(
         val connected =
             bound && reply.connected.await(MediaDecodePolicy.DEADLINE_MS, TimeUnit.MILLISECONDS) && remote != null
         if (bound && !connected) {
-            startupTimedOut = true
-            poisoned = true
-            // Close the race with a callback immediately after the await timed out.
-            if (remote != null) {
-                startupTimedOut = false
-                poisoned = false
-                return true
+            synchronized(bindingLock) {
+                if (closed) return false
+                // Close the race with a callback immediately after the await timed out.
+                if (remote != null) return true
+                if (!bindingLost) {
+                    startupTimedOut = true
+                    poisoned = true
+                }
             }
         }
         return connected

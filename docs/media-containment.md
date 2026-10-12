@@ -10,6 +10,8 @@ Input bytes are written only after their temporary file is unlinked, then passed
 
 The app owns bounded output shared memory. Replies use an explicit primitive Binder format with a per-request callback capability, kernel caller UID, first-response fencing and fixed waveform shape. The app validates dimensions, byte capacity, metadata and output protection, then copies software ARGB8888 pixels into an app-owned bitmap. It never displays mutable worker memory directly or re-decodes compressed image output. Shared-memory protection cannot revoke a worker's existing writable mapping; the bounded copy confines concurrent mutation to pixel values.
 
+Debug instrumentation may pass the exact path of an existing synthetic `media-containment-canary`. It tests that the worker cannot reopen that file, including permission denial or namespace invisibility. No real account files are probed, and release requests omit this field.
+
 ## Limits and failure
 
 - Encoded image input: at most 64 MiB. Existing receive/presentation limits may be lower and remain in force.

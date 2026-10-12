@@ -85,7 +85,10 @@ class MediaPipelineVideoReadTest {
             descriptor: java.io.FileDescriptor,
             offset: Long,
             length: Long,
-        ): Unit = throw RuntimeException("setDataSource failed")
+        ) {
+            check(descriptor.valid() && offset == 0L && length > 0L)
+            throw RuntimeException("setDataSource failed")
+        }
 
         @Implementation
         fun release() {

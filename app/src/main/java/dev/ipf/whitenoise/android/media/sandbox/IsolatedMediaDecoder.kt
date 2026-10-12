@@ -26,6 +26,7 @@ internal object IsolatedMediaDecoder {
                 result.getBoolean("internetGranted"),
                 result.getBoolean("runtimeInitialized"),
                 result.getBoolean("privateCanaryDenied"),
+                result.getInt("privateCanaryErrno"),
             )
     }
 
@@ -130,4 +131,5 @@ internal data class WorkerIsolation(
     val internetGranted: Boolean,
     val runtimeInitialized: Boolean,
     val privateCanaryDenied: Boolean,
+    val privateCanaryErrno: Int,
 )
