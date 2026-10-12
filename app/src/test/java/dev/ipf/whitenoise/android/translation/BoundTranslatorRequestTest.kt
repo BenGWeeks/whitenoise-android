@@ -134,7 +134,7 @@ class BoundTranslatorRequestTest {
     private suspend fun failureOf(operation: suspend () -> String): TranslationFailure =
         (runCatching { operation() }.exceptionOrNull() as TranslationException).failure
 
-    private fun failure(type: Int): TranslationError = TranslationError().apply { this.type = type }
+    private fun failure(type: Byte): TranslationError = TranslationError().apply { this.type = type }
 
     private class FakeTranslator(
         private val deliver: (Int, ITranslationCallback) -> Unit,
