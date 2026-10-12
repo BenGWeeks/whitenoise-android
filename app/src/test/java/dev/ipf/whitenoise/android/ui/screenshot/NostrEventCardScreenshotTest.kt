@@ -348,14 +348,15 @@ class NostrEventCardScreenshotTest {
     @Test
     fun bodyImageCardUsesNativeDocumentAndManualAction() {
         render(darkTheme = false) {
-            val state = rememberNostrEventPreviewState(
-                NostrEventCardState.Loaded(
-                    card(NostrEventCardKind.Note, 1, null, "A shared post with a photograph.")
-                        .copy(readerBody = "Photo in the full body"),
-                ),
-                mentionDisplayName = { null },
-                parseMarkdown = { text -> bodyImageSnapshotDocument(text) },
-            )
+            val state =
+                rememberNostrEventPreviewState(
+                    NostrEventCardState.Loaded(
+                        card(NostrEventCardKind.Note, 1, null, "A shared post with a photograph.")
+                            .copy(readerBody = "Photo in the full body"),
+                    ),
+                    mentionDisplayName = { null },
+                    parseMarkdown = { text -> bodyImageSnapshotDocument(text) },
+                )
             EventBubble(state, mine = false)
         }
         composeRule.waitUntil(10_000) {
@@ -400,18 +401,28 @@ class NostrEventCardScreenshotTest {
     }
 
     private fun bodyImageSnapshotDocument(text: String): dev.ipf.marmotkit.MarkdownDocumentFfi {
-        val inline = if (text == "Photo in the full body") {
-            dev.ipf.marmotkit.MarkdownInlineFfi.Image(
-                dest = "https://images.example/body-snapshot",
-                title = null,
-                alt = listOf(dev.ipf.marmotkit.MarkdownInlineFfi.Text("A photograph")),
-                classification = dev.ipf.marmotkit.MarkdownLinkDestinationKindFfi.WEB,
-            )
-        } else {
-            dev.ipf.marmotkit.MarkdownInlineFfi.Text(text)
-        }
+        val inline =
+            if (text == "Photo in the full body") {
+                dev.ipf.marmotkit.MarkdownInlineFfi.Image(
+                    dest = "https://images.example/body-snapshot",
+                    title = null,
+                    alt =
+                        listOf(
+                            dev.ipf.marmotkit.MarkdownInlineFfi
+                                .Text("A photograph"),
+                        ),
+                    classification = dev.ipf.marmotkit.MarkdownLinkDestinationKindFfi.WEB,
+                )
+            } else {
+                dev.ipf.marmotkit.MarkdownInlineFfi
+                    .Text(text)
+            }
         return dev.ipf.marmotkit.MarkdownDocumentFfi(
-            blocks = listOf(dev.ipf.marmotkit.MarkdownBlockFfi.Paragraph(listOf(inline))),
+            blocks =
+                listOf(
+                    dev.ipf.marmotkit.MarkdownBlockFfi
+                        .Paragraph(listOf(inline)),
+                ),
             truncated = false,
             blankLinesBefore = byteArrayOf(),
         )

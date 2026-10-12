@@ -39,8 +39,13 @@ class NostrEventReaderTest {
 
     @Test
     fun readerDiscoversBodyImagesWithoutAnInitialPublicImageFetch() {
-        val downloads = java.util.concurrent.atomic.AtomicInteger()
-        AvatarImageLoader.attachProfileImageFetcher { _, _ -> downloads.incrementAndGet(); byteArrayOf() }
+        val downloads =
+            java.util.concurrent.atomic
+                .AtomicInteger()
+        AvatarImageLoader.attachProfileImageFetcher { _, _ ->
+            downloads.incrementAndGet()
+            byteArrayOf()
+        }
         try {
             composeRule.setContent {
                 WhiteNoiseTheme {
@@ -313,16 +318,17 @@ class NostrEventReaderTest {
 
     private fun bodyImageDocument() =
         MarkdownDocumentFfi(
-            blocks = listOf(
-                paragraph(
-                    MarkdownInlineFfi.Image(
-                        dest = "https://images.example/reader-body",
-                        title = null,
-                        alt = listOf(MarkdownInlineFfi.Text("Photo caption")),
-                        classification = MarkdownLinkDestinationKindFfi.WEB,
+            blocks =
+                listOf(
+                    paragraph(
+                        MarkdownInlineFfi.Image(
+                            dest = "https://images.example/reader-body",
+                            title = null,
+                            alt = listOf(MarkdownInlineFfi.Text("Photo caption")),
+                            classification = MarkdownLinkDestinationKindFfi.WEB,
+                        ),
                     ),
                 ),
-            ),
             truncated = false,
             blankLinesBefore = byteArrayOf(),
         )

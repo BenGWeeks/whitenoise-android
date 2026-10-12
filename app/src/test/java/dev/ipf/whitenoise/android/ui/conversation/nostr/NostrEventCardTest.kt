@@ -41,16 +41,22 @@ class NostrEventCardTest {
 
     @Test
     fun bodyOnlyImageOffersAnExplicitCardActionWithoutFetching() {
-        val downloads = java.util.concurrent.atomic.AtomicInteger()
-        AvatarImageLoader.attachProfileImageFetcher { _, _ -> downloads.incrementAndGet(); byteArrayOf() }
+        val downloads =
+            java.util.concurrent.atomic
+                .AtomicInteger()
+        AvatarImageLoader.attachProfileImageFetcher { _, _ ->
+            downloads.incrementAndGet()
+            byteArrayOf()
+        }
         try {
             composeRule.setContent {
                 WhiteNoiseTheme {
-                    val state = rememberNostrEventPreviewState(
-                        NostrEventCardState.Loaded(noteCard().copy(readerBody = "Body with a photo")),
-                        mentionDisplayName = { null },
-                        parseMarkdown = { text -> bodyImageDocument(text) },
-                    )
+                    val state =
+                        rememberNostrEventPreviewState(
+                            NostrEventCardState.Loaded(noteCard().copy(readerBody = "Body with a photo")),
+                            mentionDisplayName = { null },
+                            parseMarkdown = { text -> bodyImageDocument(text) },
+                        )
                     NostrEventCard(
                         state = state,
                         authorDisplayName = { "Alex" },
@@ -75,22 +81,25 @@ class NostrEventCardTest {
     }
 
     private fun bodyImageDocument(text: String): MarkdownDocumentFfi {
-        val inline = if (text == "Body with a photo") {
-            MarkdownInlineFfi.Image(
-                dest = "https://images.example/body-only",
-                title = null,
-                alt = listOf(MarkdownInlineFfi.Text("Photo")),
-                classification = MarkdownLinkDestinationKindFfi.WEB,
-            )
-        } else {
-            MarkdownInlineFfi.Text(text)
-        }
+        val inline =
+            if (text == "Body with a photo") {
+                MarkdownInlineFfi.Image(
+                    dest = "https://images.example/body-only",
+                    title = null,
+                    alt = listOf(MarkdownInlineFfi.Text("Photo")),
+                    classification = MarkdownLinkDestinationKindFfi.WEB,
+                )
+            } else {
+                MarkdownInlineFfi.Text(text)
+            }
         return MarkdownDocumentFfi(listOf(MarkdownBlockFfi.Paragraph(listOf(inline))), false, byteArrayOf())
     }
 
     @Test
     fun compactCardOffersImageWithoutStartingAPublicImageRequest() {
-        val downloads = java.util.concurrent.atomic.AtomicInteger()
+        val downloads =
+            java.util.concurrent.atomic
+                .AtomicInteger()
         AvatarImageLoader.attachProfileImageFetcher { _, _ ->
             downloads.incrementAndGet()
             byteArrayOf()
@@ -99,9 +108,10 @@ class NostrEventCardTest {
             composeRule.setContent {
                 WhiteNoiseTheme {
                     NostrEventCard(
-                        state = NostrEventCardState.Loaded(
-                            noteCard().copy(imageUrls = listOf("https://images.example/manual")),
-                        ),
+                        state =
+                            NostrEventCardState.Loaded(
+                                noteCard().copy(imageUrls = listOf("https://images.example/manual")),
+                            ),
                         authorDisplayName = { "Alex" },
                         contentColor = Color.Black,
                         onRetry = {},

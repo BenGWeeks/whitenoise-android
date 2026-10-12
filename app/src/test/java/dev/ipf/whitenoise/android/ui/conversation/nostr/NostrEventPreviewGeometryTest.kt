@@ -76,9 +76,12 @@ class NostrEventPreviewGeometryTest {
                 composeRule.waitForIdle()
                 assertEquals("$current / $next", initial, bounds())
                 if (next is NostrEventCardState.Loaded && next.card.imageUrls.isNotEmpty()) {
-                    val label = ApplicationProvider.getApplicationContext<Context>()
-                        .getString(R.string.nostr_event_view_image)
-                    composeRule.onNodeWithText(label)
+                    val label =
+                        ApplicationProvider
+                            .getApplicationContext<Context>()
+                            .getString(R.string.nostr_event_view_image)
+                    composeRule
+                        .onNodeWithText(label)
                         .assertIsDisplayed()
                         .assertHeightIsAtLeast(48.dp * current.fontScale)
                 }

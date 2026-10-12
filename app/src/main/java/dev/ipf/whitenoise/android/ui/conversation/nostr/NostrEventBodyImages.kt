@@ -36,8 +36,13 @@ private class NostrBodyImageCollector {
         if (urls.size >= MAX_READER_IMAGES || raw.length > IMAGE_DESTINATION_MAX_CHARS) return
         val safe = safeNostrMediaUrl(raw) ?: return
         val hintedImage =
-            runCatching { URI(safe).path.orEmpty().substringAfterLast('.').lowercase(Locale.ROOT) }
-                .getOrNull() in IMAGE_PATH_HINTS
+            runCatching {
+                URI(safe)
+                    .path
+                    .orEmpty()
+                    .substringAfterLast('.')
+                    .lowercase(Locale.ROOT)
+            }.getOrNull() in IMAGE_PATH_HINTS
         if (explicit || hintedImage) urls += safe
     }
 

@@ -43,20 +43,22 @@ class NostrEventBodyImagesTest {
     @Test
     fun nestedStructureKeepsOneCombinedEightImageLimit() {
         val urls = (0..12).map { "https://images.example/$it" }
-        val document = document(
-            MarkdownBlockFfi.BlockQuote(
-                blocks = listOf(MarkdownBlockFfi.Paragraph(urls.map(::image))),
-                blankLinesBefore = byteArrayOf(),
-            ),
-        )
+        val document =
+            document(
+                MarkdownBlockFfi.BlockQuote(
+                    blocks = listOf(MarkdownBlockFfi.Paragraph(urls.map(::image))),
+                    blankLinesBefore = byteArrayOf(),
+                ),
+            )
         assertEquals(urls.take(MAX_READER_IMAGES), nostrEventImageCandidates(urls.take(3), document))
     }
 
     @Test
     fun literalTreesStopAtTheTraversalBudget() {
         val literals = List(256) { MarkdownInlineFfi.Text("Not a link") }
-        val blocks = List(4) { MarkdownBlockFfi.Paragraph(literals) } +
-            MarkdownBlockFfi.Paragraph(listOf(image("https://images.example/after-budget")))
+        val blocks =
+            List(4) { MarkdownBlockFfi.Paragraph(literals) } +
+                MarkdownBlockFfi.Paragraph(listOf(image("https://images.example/after-budget")))
         assertEquals(
             emptyList<String>(),
             nostrEventImageCandidates(emptyList(), MarkdownDocumentFfi(blocks, false, byteArrayOf())),
