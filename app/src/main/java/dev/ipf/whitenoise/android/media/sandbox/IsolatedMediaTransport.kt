@@ -393,21 +393,7 @@ internal class IsolatedMediaTransport(
                     what = MediaDecodePolicy.DECODE
                     arg1 = reply.id
                     replyTo = responseCapability(reply)
-                    data =
-                        Bundle().apply {
-                            if (dev.ipf.whitenoise.android.BuildConfig.DEBUG) {
-                                val canary = File(context.filesDir, "media-containment-canary")
-                                if (canary.isFile) putString("canaryPath", canary.absolutePath)
-                            }
-                            putInt("version", MediaDecodePolicy.VERSION)
-                            putInt("operation", request.operation)
-                            putInt("edge", request.edge)
-                            putBoolean("oriented", request.option)
-                            putLong("offset", request.offset)
-                            putLong("length", request.length ?: input.statSize)
-                            putParcelable("input", input)
-                            putParcelable("output", output)
-                        }
+                    data = requestPayload(input, output, request)
                 },
             )
             requestDispatched = true
@@ -437,6 +423,26 @@ internal class IsolatedMediaTransport(
             pending = null
         }
     }
+
+    private fun requestPayload(
+        input: ParcelFileDescriptor,
+        output: SharedMemory,
+        request: MediaDecodeRequest,
+    ): Bundle =
+        Bundle().apply {
+            if (dev.ipf.whitenoise.android.BuildConfig.DEBUG) {
+                val canary = File(context.filesDir, "media-containment-canary")
+                if (canary.isFile) putString("canaryPath", canary.absolutePath)
+            }
+            putInt("version", MediaDecodePolicy.VERSION)
+            putInt("operation", request.operation)
+            putInt("edge", request.edge)
+            putBoolean("oriented", request.option)
+            putLong("offset", request.offset)
+            putLong("length", request.length ?: input.statSize)
+            putParcelable("input", input)
+            putParcelable("output", output)
+        }
 
     private fun recordRefusal(
         key: String,

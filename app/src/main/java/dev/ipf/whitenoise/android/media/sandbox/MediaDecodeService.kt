@@ -217,8 +217,8 @@ class MediaDecodeService : Service() {
     }
 
     private fun privateCanaryErrno(data: Bundle): Int {
-        val path = data.getString("canaryPath")
-        if (!dev.ipf.whitenoise.android.BuildConfig.DEBUG || path?.endsWith("/files/media-containment-canary") != true) return -1
+        val path = data.getString("canaryPath")?.takeIf { it.endsWith("/files/media-containment-canary") }
+        if (!dev.ipf.whitenoise.android.BuildConfig.DEBUG || path == null) return -1
         return try {
             val descriptor = android.system.Os.open(path, android.system.OsConstants.O_RDONLY, 0)
             android.system.Os.close(descriptor)
