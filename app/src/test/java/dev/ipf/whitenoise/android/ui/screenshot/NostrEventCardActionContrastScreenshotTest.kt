@@ -14,8 +14,10 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.test.printToString
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.dp
 import com.github.takahirom.roborazzi.captureRoboImage
@@ -64,6 +66,10 @@ class NostrEventCardActionContrastScreenshotTest {
         render(dark = true, amoled = false) {
             NostrEventCardLayout(140.dp, onExpand = {}) { Box(Modifier.height(220.dp)) }
         }
+        val footer = rule.onNodeWithText("Expand").fetchSemanticsNode()
+        val outgoing = rule.onNodeWithTag("outgoing").fetchSemanticsNode()
+        println("Expansion fixture: outgoing=${outgoing.boundsInRoot}, footer=${footer.boundsInRoot}")
+        println(rule.onRoot(useUnmergedTree = true).printToString())
         assertForeground("Expand")
     }
 
