@@ -2316,6 +2316,7 @@ internal fun MessageBubble(
                                 presentation = bubblePresentation,
                             )
                         ReplyPreviewCard(
+                            appState = appState,
                             receivedEmoji = replyReceivedEmoji,
                             senderTitle =
                                 if (preview.originalUnavailable) {
@@ -2902,6 +2903,7 @@ internal fun MessageBubble(
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 replyPreview?.let { preview ->
                                     ReplyPreviewCard(
+                                        appState = appState,
                                         receivedEmoji = replyReceivedEmoji,
                                         senderTitle =
                                             if (preview.originalUnavailable) {
@@ -2969,6 +2971,7 @@ internal fun MessageBubble(
                                     replyPreview?.let { preview ->
                                         {
                                             ReplyPreviewCard(
+                                                appState = appState,
                                                 receivedEmoji = replyReceivedEmoji,
                                                 senderTitle =
                                                     if (preview.originalUnavailable) {
