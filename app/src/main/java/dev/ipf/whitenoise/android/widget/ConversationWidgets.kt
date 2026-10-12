@@ -8,7 +8,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import androidx.annotation.VisibleForTesting
-import androidx.compose.runtime.snapshotFlow
 import androidx.core.content.ContextCompat
 import dev.ipf.marmotkit.ChatListViewFfi
 import dev.ipf.marmotkit.ChatListWindowSubscription
@@ -55,25 +54,9 @@ internal object ConversationWidgets {
             ContextCompat.RECEIVER_NOT_EXPORTED,
         )
         application.applicationScope.launch(Dispatchers.Main) {
-            collectWidgetRefreshes(refreshSignals(state)) { redactFirst -> refresh(application, state, redactFirst) }
+            collectWidgetRefreshes(widgetRefreshSignals(state)) { redactFirst -> refresh(application, state, redactFirst) }
         }
     }
-
-    private fun refreshSignals(state: WhiteNoiseAppState) =
-        snapshotFlow {
-            WidgetRefreshSignal(
-                privacy =
-                    listOf(
-                        state.runtimeGeneration,
-                        state.appLockScreenVisible,
-                        state.requireAppUnlock,
-                        state.appUnlockEvaluationPending,
-                        state.accounts.map { it.label }.toSet(),
-                        state.activeAccountRef,
-                    ),
-                content = listOf(state.accountUnreadCounts, state.chatListItems),
-            )
-        }
 
     fun redact(context: Context) {
         refreshEpoch.incrementAndGet()

@@ -1,5 +1,7 @@
 package dev.ipf.whitenoise.android.widget
 
+import androidx.compose.runtime.snapshotFlow
+import dev.ipf.whitenoise.android.state.WhiteNoiseAppState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectLatest
@@ -9,6 +11,22 @@ internal data class WidgetRefreshSignal(
     val privacy: List<Any?>,
     val content: List<Any?>,
 )
+
+internal fun widgetRefreshSignals(state: WhiteNoiseAppState): Flow<WidgetRefreshSignal> =
+    snapshotFlow {
+        WidgetRefreshSignal(
+            privacy =
+                listOf(
+                    state.runtimeGeneration,
+                    state.appLockScreenVisible,
+                    state.requireAppUnlock,
+                    state.appUnlockEvaluationPending,
+                    state.accounts.map { it.label }.toSet(),
+                    state.activeAccountRef,
+                ),
+            content = listOf(state.accountUnreadCounts, state.chatListItems),
+        )
+    }
 
 /** Privacy changes redact immediately; ordinary row bursts replace the last displayed rows once settled. */
 internal suspend fun collectWidgetRefreshes(
