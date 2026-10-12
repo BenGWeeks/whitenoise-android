@@ -19,7 +19,13 @@ name: folders-details-clear-reopen
 - assertNotVisible:
     id: folder.description
     text: (?s)^(?!Description$).+
-- hideKeyboard
+# Android hideKeyboard sends Back when selection deletion has already hidden the IME.
+- runFlow:
+    when:
+      visible:
+        id: com\.google\.android\.inputmethod\.latin:id/.*
+    commands:
+      - hideKeyboard
 - scrollUntilVisible:
     element:
       id: folder.showWhenEmpty
