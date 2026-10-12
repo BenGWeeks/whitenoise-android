@@ -8,7 +8,7 @@
     <string name="translation_show_result">Показать перевод</string>
     <string name="translation_loading">Перевод на устройстве…</string>
     <string name="translation_open_engine">Открыть переводчик</string>
-    <string name="translation_engine_managed">Локальный перевод использует Offline Translator 0.8.3. Управляйте языковыми пакетами в этом приложении.</string>
+    <string name="translation_engine_managed">Локальный перевод использует Offline Translator 0.8.3. Управляйте языковыми пакетами в Offline Translator.</string>
     <string name="translation_missing_engine">Установите Offline Translator 0.8.3 для перевода на этом устройстве.</string>
     <string name="translation_unverified_engine">Переводчик не проверен или не поддерживается. Текст не отправлялся.</string>
     <string name="translation_detection_failed">Выберите исходный язык и повторите попытку.</string>

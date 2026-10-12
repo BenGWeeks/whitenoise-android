@@ -97,6 +97,7 @@ internal fun TextIntelligenceSettingsScreen(onBack: () -> Unit) {
                             busy = true
                             try {
                                 models.remove()
+                                failed = false
                                 installedChecksum = null
                             } catch (
                                 cancelled: CancellationException,

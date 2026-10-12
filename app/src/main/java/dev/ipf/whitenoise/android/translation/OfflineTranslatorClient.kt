@@ -5,15 +5,22 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.os.IBinder
+import android.os.RemoteException
 import dev.davidv.translator.ErrorType
 import dev.davidv.translator.ITranslationCallback
 import dev.davidv.translator.ITranslationService
 import dev.davidv.translator.TranslationError
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
+import java.util.concurrent.ArrayBlockingQueue
+import java.util.concurrent.RejectedExecutionException
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 /** One bound service per request. Cancellation invalidates its private callback and always unbinds. */
 internal class OfflineTranslatorClient(
@@ -39,7 +46,7 @@ internal class OfflineTranslatorClient(
                     translationResult.completeExceptionally(TranslationException(TranslationFailure.SERVICE_DIED))
                 }
             try {
-                withTimeout(30_000L) {
+                withTimeoutOrNull(30_000L) {
                     if (withContext(Dispatchers.IO) { discoverOfflineTranslator(context) } != service) {
                         throw TranslationException(TranslationFailure.UNVERIFIED_ENGINE)
                     }
@@ -53,12 +60,13 @@ internal class OfflineTranslatorClient(
                     val connected = connectionResult.await()
                     binder = connected
                     connected.linkToDeath(death, 0)
-                    if (withContext(Dispatchers.IO) { connected.interfaceDescriptor } != OFFLINE_TRANSLATOR_ACTION ||
+                    val descriptor = runTranslatorBinderCall { connected.interfaceDescriptor }
+                    if (descriptor != OFFLINE_TRANSLATOR_ACTION ||
                         withContext(Dispatchers.IO) { discoverOfflineTranslator(context) } != service
                     ) {
                         throw TranslationException(TranslationFailure.INCOMPATIBLE_ENGINE)
                     }
-                    withContext(Dispatchers.IO) {
+                    runTranslatorBinderCall {
                         ITranslationService.Stub.asInterface(connected).translate(
                             text,
                             source,
@@ -67,9 +75,9 @@ internal class OfflineTranslatorClient(
                         )
                     }
                     translationResult.await()
-                }
-            } catch (_: TimeoutCancellationException) {
-                throw TranslationException(TranslationFailure.TIMEOUT)
+                } ?: throw TranslationException(TranslationFailure.TIMEOUT)
+            } catch (_: RemoteException) {
+                throw TranslationException(TranslationFailure.SERVICE_DIED)
             } finally {
                 connectionResult.cancel()
                 translationResult.cancel()
@@ -78,6 +86,32 @@ internal class OfflineTranslatorClient(
             }
         }
 }
+
+// Binder ignores coroutine cancellation while a synchronous transaction is stalled. A bounded
+// pool leaves deadline and unbind ownership with the caller without creating unlimited threads.
+private val translatorBinderExecutor =
+    ThreadPoolExecutor(2, 2, 30L, TimeUnit.SECONDS, ArrayBlockingQueue(2)) { operation ->
+        Thread(operation, "offline-translator-binder").apply { isDaemon = true }
+    }.apply { allowCoreThreadTimeOut(true) }
+
+internal suspend fun <T> runTranslatorBinderCall(operation: () -> T): T =
+    suspendCancellableCoroutine { continuation ->
+        try {
+            val future =
+                translatorBinderExecutor.submit {
+                    try {
+                        continuation.resume(operation())
+                    } catch (_: RemoteException) {
+                        continuation.resumeWithException(TranslationException(TranslationFailure.SERVICE_DIED))
+                    } catch (error: Exception) {
+                        continuation.resumeWithException(error)
+                    }
+                }
+            continuation.invokeOnCancellation { future.cancel(true) }
+        } catch (_: RejectedExecutionException) {
+            continuation.resumeWithException(TranslationException(TranslationFailure.CONNECTION))
+        }
+    }
 
 private fun translationServiceConnection(
     connected: CompletableDeferred<IBinder>,

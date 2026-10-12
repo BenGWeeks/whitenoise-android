@@ -868,7 +868,7 @@ internal fun MessageBubble(
         appState.ttsController.preparedSpeechFor(record.messageIdHex, speakableProjection?.projectionId)
     val ttsProjectionResolver =
         rememberTtsHighlightProjectionResolver(
-            speakableProjection,
+            speakableProjection.takeIf { visibleTranslation == null },
             preparedTtsSpeech,
         )
     val ttsLeafHighlightResolver =

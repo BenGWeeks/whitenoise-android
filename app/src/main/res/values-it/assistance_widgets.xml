@@ -27,7 +27,6 @@
     <string name="widget_title">Widget conversazioni</string>
     <string name="widget_privacy">Scegli un account. Il contenuto è nascosto per impostazione predefinita e rimosso quando bloccato o non disponibile.</string>
     <string name="widget_all_accounts">Includi tutti gli account ed etichetta ogni riga</string>
-    <string name="widget_previews">Mostra anteprime dei messaggi</string>
     <string name="widget_unread_only">Solo conversazioni recenti non lette</string>
     <string name="widget_unavailable">Conversazioni non disponibili</string>
     <string name="widget_open_app">Apri White Noise</string>

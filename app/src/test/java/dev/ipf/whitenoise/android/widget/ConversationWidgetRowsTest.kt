@@ -54,7 +54,7 @@ class ConversationWidgetRowsTest {
         )
     }
 
-    @Test fun unreadSelectionAndExplicitPreviewOptInRemainBounded() {
+    @Test fun unreadSelectionIgnoresLegacyPreviewOptInAndRemainsBounded() {
         val selected =
             selectConversationWidgetRows(
                 ConversationWidgetChoice("a", previews = true, unreadOnly = true),
@@ -64,7 +64,7 @@ class ConversationWidgetRowsTest {
                 8,
             )
         assertEquals(1, selected.size)
-        assertEquals("private A", selected.single().preview)
+        assertNull(selected.single().preview)
         val many = (1..100).map { rows.first().copy(group = "$it") }
         assertEquals(8, selectConversationWidgetRows(ConversationWidgetChoice("a"), setOf("a"), true, many, 100).size)
     }

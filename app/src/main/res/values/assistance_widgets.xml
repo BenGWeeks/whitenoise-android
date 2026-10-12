@@ -27,7 +27,6 @@
     <string name="widget_title">Conversations widget</string>
     <string name="widget_privacy">Choose an account. Content is redacted by default and cleared while locked or unavailable.</string>
     <string name="widget_all_accounts">Include all accounts; label every row</string>
-    <string name="widget_previews">Show message previews</string>
     <string name="widget_unread_only">Unread recent conversations only</string>
     <string name="widget_unavailable">Conversations unavailable</string>
     <string name="widget_open_app">Open White Noise</string>

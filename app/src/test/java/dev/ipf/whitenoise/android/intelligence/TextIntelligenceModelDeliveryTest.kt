@@ -22,7 +22,9 @@ class TextIntelligenceModelDeliveryTest {
     @get:Rule val temporary = TemporaryFolder()
     private val context: Context get() = RuntimeEnvironment.getApplication()
 
-    @Before fun reset() = runBlocking { TextIntelligenceModelStore(context).remove() }
+    @Before fun reset() {
+        runBlocking { TextIntelligenceModelStore(context).remove() }
+    }
 
     @Test fun optionalModelIsAbsentUntilVerifiedImportAndIsRemovable() =
         runBlocking {

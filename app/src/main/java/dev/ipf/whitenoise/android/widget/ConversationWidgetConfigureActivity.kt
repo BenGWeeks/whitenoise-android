@@ -35,7 +35,9 @@ import dev.ipf.whitenoise.android.MainActivity
 import dev.ipf.whitenoise.android.R
 import dev.ipf.whitenoise.android.WhiteNoiseApplication
 import dev.ipf.whitenoise.android.ui.theme.WhiteNoiseTheme
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 
 class ConversationWidgetConfigureActivity : ComponentActivity() {
@@ -80,9 +82,15 @@ class ConversationWidgetConfigureActivity : ComponentActivity() {
                                     false
                                 }
                             if (valid && unlocked() && generation == state?.runtimeGeneration) {
-                                ConversationWidgetConfiguration(
-                                    this@ConversationWidgetConfigureActivity,
-                                ).save(id, choice)
+                                val saved =
+                                    withContext(Dispatchers.IO) {
+                                        runCatching {
+                                            ConversationWidgetConfiguration(
+                                                this@ConversationWidgetConfigureActivity,
+                                            ).save(id, choice)
+                                        }.getOrDefault(false)
+                                    }
+                                if (!saved || !unlocked() || generation != state?.runtimeGeneration) return@launch
                                 application.applicationScope.launch { ConversationWidgets.refresh(application, state) }
                                 setResult(RESULT_OK, Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id))
                                 finish()

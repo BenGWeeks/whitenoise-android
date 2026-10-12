@@ -27,7 +27,6 @@
     <string name="widget_title">会话小组件</string>
     <string name="widget_privacy">请选择账户。默认隐藏内容，锁定或不可用时清除内容。</string>
     <string name="widget_all_accounts">包含所有账户，并标注每一行</string>
-    <string name="widget_previews">显示消息预览</string>
     <string name="widget_unread_only">仅显示最近的未读会话</string>
     <string name="widget_unavailable">会话不可用</string>
     <string name="widget_open_app">打开 White Noise</string>

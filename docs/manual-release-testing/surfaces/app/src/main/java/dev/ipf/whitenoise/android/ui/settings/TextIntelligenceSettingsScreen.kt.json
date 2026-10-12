@@ -10,6 +10,86 @@
         "test_ids": [
           "SET-034"
         ]
+      },
+      {
+        "surface": "R.string.intelligence_aicore_help",
+        "source": "app/src/main/java/dev/ipf/whitenoise/android/ui/settings/TextIntelligenceSettingsScreen.kt",
+        "anchor": "R.string.intelligence_aicore_help",
+        "test_ids": [
+          "SET-034"
+        ]
+      },
+      {
+        "surface": "R.string.intelligence_checksum",
+        "source": "app/src/main/java/dev/ipf/whitenoise/android/ui/settings/TextIntelligenceSettingsScreen.kt",
+        "anchor": "R.string.intelligence_checksum",
+        "test_ids": [
+          "SET-034"
+        ]
+      },
+      {
+        "surface": "R.string.intelligence_import_model",
+        "source": "app/src/main/java/dev/ipf/whitenoise/android/ui/settings/TextIntelligenceSettingsScreen.kt",
+        "anchor": "R.string.intelligence_import_model",
+        "test_ids": [
+          "SET-034"
+        ]
+      },
+      {
+        "surface": "R.string.intelligence_local_only",
+        "source": "app/src/main/java/dev/ipf/whitenoise/android/ui/settings/TextIntelligenceSettingsScreen.kt",
+        "anchor": "R.string.intelligence_local_only",
+        "test_ids": [
+          "SET-034"
+        ]
+      },
+      {
+        "surface": "R.string.intelligence_model_help",
+        "source": "app/src/main/java/dev/ipf/whitenoise/android/ui/settings/TextIntelligenceSettingsScreen.kt",
+        "anchor": "R.string.intelligence_model_help",
+        "test_ids": [
+          "SET-034"
+        ]
+      },
+      {
+        "surface": "R.string.intelligence_model_import_failed",
+        "source": "app/src/main/java/dev/ipf/whitenoise/android/ui/settings/TextIntelligenceSettingsScreen.kt",
+        "anchor": "R.string.intelligence_model_import_failed",
+        "test_ids": [
+          "SET-034"
+        ]
+      },
+      {
+        "surface": "R.string.intelligence_model_ready",
+        "source": "app/src/main/java/dev/ipf/whitenoise/android/ui/settings/TextIntelligenceSettingsScreen.kt",
+        "anchor": "R.string.intelligence_model_ready",
+        "test_ids": [
+          "SET-034"
+        ]
+      },
+      {
+        "surface": "R.string.intelligence_model_verifying",
+        "source": "app/src/main/java/dev/ipf/whitenoise/android/ui/settings/TextIntelligenceSettingsScreen.kt",
+        "anchor": "R.string.intelligence_model_verifying",
+        "test_ids": [
+          "SET-034"
+        ]
+      },
+      {
+        "surface": "R.string.intelligence_remove_model",
+        "source": "app/src/main/java/dev/ipf/whitenoise/android/ui/settings/TextIntelligenceSettingsScreen.kt",
+        "anchor": "R.string.intelligence_remove_model",
+        "test_ids": [
+          "SET-034"
+        ]
+      },
+      {
+        "surface": "R.string.intelligence_title",
+        "source": "app/src/main/java/dev/ipf/whitenoise/android/ui/settings/TextIntelligenceSettingsScreen.kt",
+        "anchor": "R.string.intelligence_title",
+        "test_ids": [
+          "SET-034"
+        ]
       }
     ]
   }
