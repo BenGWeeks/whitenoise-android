@@ -235,8 +235,10 @@ internal sealed class StagedPreviewItem {
 internal fun stagedPreviewItems(
     mediaSlots: List<PendingMediaSlot>,
     documentUris: List<android.net.Uri>,
-): List<StagedPreviewItem> =
-    mediaSlots.map { StagedPreviewItem.Media(it) } + documentUris.map { StagedPreviewItem.Document(it) }
+): List<StagedPreviewItem> {
+    val media = mediaSlots.map { StagedPreviewItem.Media(it) }
+    return media + documentUris.map { StagedPreviewItem.Document(it) }
+}
 
 /**
  * Where the preview cursor lands after removing [removedIndex] from a list

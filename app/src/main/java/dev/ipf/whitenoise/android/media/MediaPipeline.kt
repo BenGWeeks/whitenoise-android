@@ -566,8 +566,10 @@ object MediaPipeline {
             else -> EXIF_ORIENTATION_NORMAL
         }
 
-    internal fun exifOrientationRequiresPixelTransform(orientation: Int?): Boolean =
-        normalizeExifOrientation(orientation) != EXIF_ORIENTATION_NORMAL
+    internal fun exifOrientationRequiresPixelTransform(orientation: Int?): Boolean {
+        val normalized = normalizeExifOrientation(orientation)
+        return normalized != EXIF_ORIENTATION_NORMAL
+    }
 
     internal fun exifOrientationSwapsDimensions(orientation: Int?): Boolean =
         when (normalizeExifOrientation(orientation)) {
@@ -876,8 +878,10 @@ object MediaPipeline {
         uri: Uri,
         maxEdgePx: Int = DEFAULT_MAX_EDGE_PX,
         quality: Int = DEFAULT_JPEG_QUALITY,
-    ): DownscaledJpeg? =
-        decodeSampledFromUri(contentResolver, uri, maxEdgePx)?.let { finishDownscaledJpeg(it, quality) }
+    ): DownscaledJpeg? {
+        val bitmap = decodeSampledFromUri(contentResolver, uri, maxEdgePx) ?: return null
+        return finishDownscaledJpeg(bitmap, quality)
+    }
 
     /**
      * Byte-array counterpart to [readDownscaledJpeg] for a remotely selected

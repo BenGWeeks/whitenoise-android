@@ -405,11 +405,15 @@ internal interface AudioDecoderCodec<FormatT> {
 private class AndroidAudioDecoderResources(
     private val descriptor: java.io.FileDescriptor,
 ) : AudioDecoderResources<MediaFormat> {
-    override fun createExtractor(): AudioDecoderExtractor<MediaFormat> =
-        AndroidAudioDecoderExtractor(MediaExtractor(), descriptor)
+    override fun createExtractor(): AudioDecoderExtractor<MediaFormat> {
+        val extractor = MediaExtractor()
+        return AndroidAudioDecoderExtractor(extractor, descriptor)
+    }
 
-    override fun createCodec(mime: String): AudioDecoderCodec<MediaFormat> =
-        AndroidAudioDecoderCodec(MediaCodec.createDecoderByType(mime))
+    override fun createCodec(mime: String): AudioDecoderCodec<MediaFormat> {
+        val codec = MediaCodec.createDecoderByType(mime)
+        return AndroidAudioDecoderCodec(codec)
+    }
 }
 
 private class AndroidAudioDecoderExtractor(
