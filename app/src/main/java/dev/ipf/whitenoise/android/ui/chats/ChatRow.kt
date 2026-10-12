@@ -61,6 +61,7 @@ import dev.ipf.whitenoise.android.state.isPeerSourced
 import dev.ipf.whitenoise.android.state.messagePreviewForRetention
 import dev.ipf.whitenoise.android.state.privateContactAvatarSource
 import dev.ipf.whitenoise.android.ui.EmojiShortcodes
+import dev.ipf.whitenoise.android.ui.MarkdownTimestampText
 import dev.ipf.whitenoise.android.ui.common.GroupAvatar
 import dev.ipf.whitenoise.android.ui.common.accountActionColors
 import dev.ipf.whitenoise.android.ui.common.longPressOrVerticalDrag
@@ -555,9 +556,9 @@ internal fun ChatRowPreviewLine(
                     )
                 }.orEmpty()
         }
-    Text(
+    MarkdownTimestampText(
         text = remember(text) { EmojiShortcodes.annotate(text) },
-        inlineContent = inlineContent + EmojiShortcodes.content(),
+        inlineContent = EmojiShortcodes.content() + inlineContent,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         fontStyle = fontStyle,

@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -36,9 +35,12 @@ import dev.ipf.marmotkit.MarkdownDocumentFfi
 import dev.ipf.whitenoise.android.state.MessageStatus
 import dev.ipf.whitenoise.android.ui.EmojiLabel
 import dev.ipf.whitenoise.android.ui.EmojiShortcodes
+import dev.ipf.whitenoise.android.ui.MarkdownTimestampText
+import dev.ipf.whitenoise.android.ui.markdownDocumentTimestamps
 import dev.ipf.whitenoise.android.ui.markdownDocumentToPreviewAnnotatedString
 import dev.ipf.whitenoise.android.ui.markdownInlinesToAnnotatedString
 import dev.ipf.whitenoise.android.ui.previewTake
+import dev.ipf.whitenoise.android.ui.rememberTimestampRevision
 import kotlin.math.ceil
 
 /** Display-only excerpt keeps native inline styling but removes all actionable link annotations. */
@@ -66,7 +68,17 @@ internal fun focusedMessagePreviewText(
                     ?.style
                     ?.let { style -> AnnotatedString.Range(style, range.start, range.end) }
             }
-        EmojiShortcodes.annotate(AnnotatedString(styled.text, styled.spanStyles + inertLinkStyles))
+        EmojiShortcodes.annotate(
+            buildAnnotatedString {
+                append(styled.text)
+                (styled.spanStyles + inertLinkStyles).forEach { addStyle(it.item, it.start, it.end) }
+                styled
+                    .getStringAnnotations(
+                        0,
+                        styled.length,
+                    ).forEach { addStringAnnotation(it.tag, it.item, it.start, it.end) }
+            },
+        )
     } else {
         // Multi-block excerpts follow the prototype's plain-text projection, preserving block separation.
         val text =
@@ -116,8 +128,10 @@ internal fun FocusedTextMessagePreview(
     mentionedYouLabel: String = "",
     footerContent: (@Composable () -> Unit)? = null,
 ) {
+    val timestampRevision =
+        rememberTimestampRevision(remember(document) { document?.let(::markdownDocumentTimestamps).orEmpty() })
     val excerpt =
-        remember(text, document, mentionDisplayName, isGroupMember) {
+        remember(text, document, mentionDisplayName, isGroupMember, timestampRevision) {
             focusedMessagePreviewText(text, document, mentionDisplayName, isGroupMember)
         }
     var lastLineWidth by remember(excerpt) { mutableStateOf<Int?>(null) }
@@ -142,9 +156,8 @@ internal fun FocusedTextMessagePreview(
             lastLineBaseline = lastLineBaseline.takeIf { warning == null },
         ) {
             Column {
-                Text(
+                MarkdownTimestampText(
                     text = excerpt,
-                    inlineContent = EmojiShortcodes.content(),
                     style = MaterialTheme.typography.bodyLarge,
                     maxLines = if (compact) 1 else FOCUSED_PREVIEW_TEXT_LINES,
                     overflow = TextOverflow.Ellipsis,

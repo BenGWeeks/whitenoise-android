@@ -20,7 +20,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -32,10 +36,13 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import dev.ipf.marmotkit.MarkdownDocumentFfi
 import dev.ipf.whitenoise.android.R
 import dev.ipf.whitenoise.android.state.WhiteNoiseAppState
+import dev.ipf.whitenoise.android.state.parseMarkdownOrEmpty
 import dev.ipf.whitenoise.android.ui.EmojiLabel
 import dev.ipf.whitenoise.android.ui.EmojiShortcodes
+import dev.ipf.whitenoise.android.ui.MarkdownTimestampText
 import dev.ipf.whitenoise.android.ui.ReceivedEmoji
 import dev.ipf.whitenoise.android.ui.conversation.composer.ComposerAccessoryRemoveButton
 import dev.ipf.whitenoise.android.ui.conversation.media.AttachmentPresentation
@@ -47,6 +54,7 @@ import dev.ipf.whitenoise.android.ui.icons.filled.Description
 import dev.ipf.whitenoise.android.ui.icons.filled.Image
 import dev.ipf.whitenoise.android.ui.icons.filled.Mic
 import dev.ipf.whitenoise.android.ui.icons.filled.Movie
+import dev.ipf.whitenoise.android.ui.rememberMarkdownPreviewText
 import dev.ipf.whitenoise.android.ui.resolveMentionsInPlaintext
 import dev.ipf.whitenoise.android.ui.theme.amoledSurfaceBorderStroke
 
@@ -90,6 +98,7 @@ internal fun ReplyPreviewCard(
     accentColor: Color? = null,
     secondaryColor: Color? = null,
     receivedEmoji: ReceivedEmoji = ReceivedEmoji.None,
+    appState: WhiteNoiseAppState? = null,
 ) {
     val title =
         when {
@@ -143,6 +152,15 @@ internal fun ReplyPreviewCard(
         remember(body, mediaLabel, mentionDisplayName) {
             mediaLabel ?: resolveMentionsInPlaintext(body, mentionDisplayName)
         }
+    var bodyDocument by remember(body, appState, appState?.activeAccount?.accountIdHex) {
+        mutableStateOf<MarkdownDocumentFfi?>(null)
+    }
+    LaunchedEffect(body, mediaLabel, appState, appState?.activeAccount?.accountIdHex) {
+        bodyDocument = if (mediaLabel == null) appState?.parseMarkdownOrEmpty(body) else null
+    }
+    val projectedBody =
+        bodyDocument?.takeIf { it.blocks.isNotEmpty() }?.let { rememberMarkdownPreviewText(it, mentionDisplayName) }
+            ?: remember(bodyText) { EmojiShortcodes.annotate(AnnotatedString(bodyText)) }
     val resolvedAccentColor =
         accentColor
             ?: if (isOwn) {
@@ -204,11 +222,10 @@ internal fun ReplyPreviewCard(
                                 tint = resolvedContentColor,
                             )
                         }
-                        Text(
-                            remember(bodyText) { EmojiShortcodes.annotate(AnnotatedString(bodyText)) },
+                        MarkdownTimestampText(
+                            projectedBody,
                             inlineContent = EmojiShortcodes.content(receivedEmoji),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = resolvedContentColor,
+                            style = MaterialTheme.typography.bodySmall.copy(color = resolvedContentColor),
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                         )
