@@ -54,7 +54,9 @@ internal object ConversationWidgets {
             ContextCompat.RECEIVER_NOT_EXPORTED,
         )
         application.applicationScope.launch(Dispatchers.Main) {
-            collectWidgetRefreshes(widgetRefreshSignals(state)) { redactFirst -> refresh(application, state, redactFirst) }
+            collectWidgetRefreshes(
+                widgetRefreshSignals(state),
+            ) { redactFirst -> refresh(application, state, redactFirst) }
         }
     }
 
