@@ -8,8 +8,8 @@
     <string name="translation_show_result">顯示譯文</string>
     <string name="translation_loading">正在裝置上翻譯…</string>
     <string name="translation_open_engine">開啟翻譯引擎</string>
-    <string name="translation_engine_managed">本機翻譯使用 Offline Translator 0.8.3。請在該應用程式中管理語言包。</string>
-    <string name="translation_missing_engine">請安裝 Offline Translator 0.8.3 以在此裝置上翻譯。</string>
+    <string name="translation_engine_managed">本機翻譯使用 Offline Translator。請在該應用程式中管理語言包。</string>
+    <string name="translation_missing_engine">請安裝 Offline Translator 以在此裝置上翻譯。</string>
     <string name="translation_unverified_engine">此引擎未經驗證或不受支援。未傳送任何文字。</string>
     <string name="translation_detection_failed">請選擇來源語言並重試。</string>
     <string name="translation_source_model_missing">請在引擎中安裝來源語言包。</string>

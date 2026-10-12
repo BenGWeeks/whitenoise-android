@@ -8,8 +8,8 @@
     <string name="translation_show_result">Mostrar tradução</string>
     <string name="translation_loading">A traduzir no dispositivo…</string>
     <string name="translation_open_engine">Abrir motor</string>
-    <string name="translation_engine_managed">A tradução local usa Offline Translator 0.8.3. Gere os pacotes de idiomas nessa aplicação.</string>
-    <string name="translation_missing_engine">Instala Offline Translator 0.8.3 para traduzir neste dispositivo.</string>
+    <string name="translation_engine_managed">A tradução local usa Offline Translator. Gere os pacotes de idiomas nessa aplicação.</string>
+    <string name="translation_missing_engine">Instala Offline Translator para traduzir neste dispositivo.</string>
     <string name="translation_unverified_engine">Este motor não está verificado ou não é compatível. Nenhum texto foi enviado.</string>
     <string name="translation_detection_failed">Escolhe um idioma de origem e tenta novamente.</string>
     <string name="translation_source_model_missing">Instala o pacote do idioma de origem no motor.</string>

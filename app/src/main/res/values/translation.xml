@@ -8,8 +8,8 @@
     <string name="translation_show_result">Show translation</string>
     <string name="translation_loading">Translating on device…</string>
     <string name="translation_open_engine">Open engine</string>
-    <string name="translation_engine_managed">On-device translation uses Offline Translator 0.8.3. Manage language packs in that app.</string>
-    <string name="translation_missing_engine">Install Offline Translator 0.8.3 to translate on this device.</string>
+    <string name="translation_engine_managed">On-device translation uses Offline Translator. Manage language packs in that app.</string>
+    <string name="translation_missing_engine">Install Offline Translator to translate on this device.</string>
     <string name="translation_unverified_engine">This engine is unverified or unsupported. No text was sent.</string>
     <string name="translation_detection_failed">Choose a source language and retry.</string>
     <string name="translation_source_model_missing">Install the source language pack in the engine.</string>

@@ -166,7 +166,7 @@ internal fun translationFailureResource(failure: TranslationFailure): Int {
 internal fun openOfflineTranslator(context: Context) {
     val launch =
         runCatching {
-            discoverOfflineTranslator(context)
+            // Opening the app shares no message text and must also work for unsupported versions.
             context.packageManager.getLaunchIntentForPackage(OFFLINE_TRANSLATOR_PACKAGE)
         }.getOrNull()
     runCatching {

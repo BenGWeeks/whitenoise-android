@@ -1,19 +1,32 @@
 # Offline Translator Binder contract
 
 The four files in `app/src/main/aidl/dev/davidv/translator/` reproduce only the
-interoperability declarations from Offline Translator release0.8.3, pinned at
+interoperability declarations from Offline Translator release 0.8.3, pinned at
 [`eb0341f0f0498bb54b11c8cac665e6f740a2a0c1`](https://github.com/DavidVentura/offline-translator/tree/eb0341f0f0498bb54b11c8cac665e6f740a2a0c1/app/src/main/aidl/dev/davidv/translator).
 The implementation, translation models and app are separate installations.
 These declarations retain GPL-3.0-only attribution; the license is retained at
 `third_party/offline-translator/LICENSE`. White Noise uses AGPL-3.0-only.
 
-The client accepts only the documented publisher certificateSHA256
+The client accepts only the documented publisher certificate SHA-256
 `2b3806e745d809018a51be58d0635ffc74cc9733439407ab1ed0424a4db3e1fb`
-and exact version0.8.3, resolves an exported enabled service within
+and reviewed versions 0.8.3, 0.8.4 and 0.8.5, resolves an exported enabled service within
 `dev.davidv.translator`, and binds the explicit component with action
 `dev.davidv.translator.ITranslationService`. Package updates invalidate active
 conversation requests. Future publisher/version compatibility needs fresh
-contract and signer verification.
+contract and signer verification. The declarations, service implementation and
+manifest are unchanged between the pinned 0.8.3 source and releases
+[0.8.4](https://github.com/DavidVentura/offline-translator/tree/403fa10370bd65d01659b6c9c7ecf6e5b3e98983) and
+[0.8.5](https://github.com/DavidVentura/offline-translator/tree/bc7cf607450d18ff44c95233c1605f90b6beb078).
+The F-Droid 0.8.5 arm64 APK (version code 302) has SHA256
+`e44fc1bf41a284692230a2666ba779808b4e1b810de8a206d933c8832d038000`
+and the same verified publisher certificate. The public test certificate in
+`app/src/test/resources/translation/offline-translator-public.pem` comes from
+the verified 0.8.3 artifact and exercises the real certificate pin.
+
+Open engine launches the installed package's launcher independently of service
+compatibility, without message text or language extras. An absent launcher uses
+the installation link. Opening the app does not grant it translation trust;
+every submission still passes signer, reviewed-version and explicit-service checks.
 
 The service takes source text, source language, target language and a callback.
 Empty source means automatic detection. Its error parcel contains an enum and

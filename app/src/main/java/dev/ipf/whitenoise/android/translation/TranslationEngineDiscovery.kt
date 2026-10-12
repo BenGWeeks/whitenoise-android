@@ -60,7 +60,9 @@ private fun validateTranslatorPackage(info: PackageInfo) {
     if (signers.size != 1 || certificateHash(signers.single().toByteArray()) != OFFLINE_TRANSLATOR_SIGNER) {
         throw TranslationException(TranslationFailure.UNVERIFIED_ENGINE)
     }
-    if (info.versionName != "0.8.3") throw TranslationException(TranslationFailure.INCOMPATIBLE_ENGINE)
+    if (info.versionName !in setOf("0.8.3", "0.8.4", "0.8.5")) {
+        throw TranslationException(TranslationFailure.INCOMPATIBLE_ENGINE)
+    }
 }
 
 private fun compatibleTranslatorService(service: ServiceInfo?): Boolean {

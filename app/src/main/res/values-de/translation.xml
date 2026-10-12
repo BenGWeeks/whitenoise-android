@@ -8,8 +8,8 @@
     <string name="translation_show_result">Übersetzung anzeigen</string>
     <string name="translation_loading">Übersetzung auf dem Gerät…</string>
     <string name="translation_open_engine">Übersetzungs-App öffnen</string>
-    <string name="translation_engine_managed">Lokale Übersetzung nutzt Offline Translator 0.8.3. Sprachpakete werden in dieser App verwaltet.</string>
-    <string name="translation_missing_engine">Installiere Offline Translator 0.8.3 für lokale Übersetzungen.</string>
+    <string name="translation_engine_managed">Lokale Übersetzung nutzt Offline Translator. Sprachpakete werden in dieser App verwaltet.</string>
+    <string name="translation_missing_engine">Installiere Offline Translator für lokale Übersetzungen.</string>
     <string name="translation_unverified_engine">Diese Übersetzungs-App ist ungeprüft oder nicht unterstützt. Es wurde kein Text gesendet.</string>
     <string name="translation_detection_failed">Wähle eine Ausgangssprache und versuche es erneut.</string>
     <string name="translation_source_model_missing">Installiere das Sprachpaket der Ausgangssprache in der Übersetzungs-App.</string>
