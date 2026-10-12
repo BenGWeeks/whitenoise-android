@@ -55,7 +55,7 @@ internal fun NostrEventImagePane(
     var image by remember(url) { mutableStateOf(AvatarImageLoader.peekBanner(url, IMAGE_WIDTH_PX)) }
     var loading by remember(url) { mutableStateOf(false) }
     var failed by remember(url) { mutableStateOf(false) }
-    var fullscreen by remember(url) { mutableStateOf(false) }
+    var fullscreen by remember(url, initiallyRequested) { mutableStateOf(initiallyRequested) }
     LaunchedEffect(url, attempt) {
         val selectedCachedImage = initiallyRequested && attempt == 1 && image != null
         if (attempt == 0 || selectedCachedImage) return@LaunchedEffect
@@ -72,12 +72,9 @@ internal fun NostrEventImagePane(
         failed = image == null
         loading = false
     }
-    LaunchedEffect(url, image, initiallyRequested) {
-        if (initiallyRequested && image != null) fullscreen = true
-    }
     val viewDescription = stringResource(R.string.nostr_event_view_image)
     NostrImageLayout(
-        presentation = NostrImagePresentation(image, loading, failed, attempt > 0 || image != null),
+        presentation = NostrImagePresentation(image, loading, failed, attempt),
         description = viewDescription,
         compact = compact,
         onOpen = { fullscreen = true },
@@ -98,8 +95,10 @@ private data class NostrImagePresentation(
     val image: ImageBitmap?,
     val loading: Boolean,
     val failed: Boolean,
-    val requested: Boolean,
-)
+    val attempt: Int,
+) {
+    val requested: Boolean get() = attempt > 0 || image != null
+}
 
 @Composable
 private fun NostrImageLayout(

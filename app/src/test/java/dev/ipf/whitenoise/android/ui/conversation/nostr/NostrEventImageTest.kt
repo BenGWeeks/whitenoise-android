@@ -39,6 +39,7 @@ class NostrEventImageTest {
     fun explicitLinkedImageRequestsOnceAndDismissesFullscreenInOneAction() {
         var downloads = 0
         var dismissals = 0
+        val selectedImage = Bitmap.createBitmap(20, 10, Bitmap.Config.ARGB_8888).asImageBitmap()
         composeRule.setContent {
             WhiteNoiseTheme {
                 NostrEventImagePane(
@@ -47,7 +48,7 @@ class NostrEventImageTest {
                     onFullscreenDismiss = { dismissals++ },
                     loadImage = { _, _ ->
                         downloads++
-                        ImageBitmap(20, 10)
+                        selectedImage
                     },
                 )
             }
