@@ -65,6 +65,9 @@ class OfflineTranslatorBinderCallTest {
                 withTimeout(2_000L) {
                     runCatching { runTranslatorBinderCall<Unit> { throw failure } }.exceptionOrNull()
                 }
-            assertSame(failure, observed)
+            assertTrue(observed is IllegalStateException)
+            assertEquals(failure.message, observed?.message)
+            // Coroutine stack recovery can copy the exception while retaining its original cause.
+            assertSame(failure, observed?.cause ?: observed)
         }
 }

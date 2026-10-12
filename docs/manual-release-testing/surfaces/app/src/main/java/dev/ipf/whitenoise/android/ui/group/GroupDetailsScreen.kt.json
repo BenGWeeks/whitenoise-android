@@ -1378,6 +1378,14 @@
           "SCR-003",
           "SCR-004"
         ]
+      },
+      {
+        "surface": "Direct chat Add to a group beyond the loaded chat list",
+        "source": "app/src/main/java/dev/ipf/whitenoise/android/ui/group/GroupDetailsScreen.kt",
+        "anchor": "rememberProfileAccountWideGroups(",
+        "test_ids": [
+          "ACC-021"
+        ]
       }
     ]
   },
