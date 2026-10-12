@@ -17,7 +17,7 @@ internal fun NostrEvent.videoMetadata(): NostrEventVideoMetadata? =
     tags
         .asSequence()
         .filter { it.firstOrNull() == "imeta" }
-        .take(32)
+        .take(MAX_VIDEO_TAGS)
         .map(::imetaProperties)
         .mapNotNull { properties ->
             val mimeType =
@@ -82,3 +82,5 @@ private val PLAYLIST_VIDEO_MIME_TYPES =
     )
 
 private val VIDEO_EVENT_KINDS = setOf(21, 22, 34_235, 34_236)
+
+private const val MAX_VIDEO_TAGS = 32

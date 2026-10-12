@@ -1,3 +1,5 @@
+@file:Suppress("FunctionNaming")
+
 package dev.ipf.whitenoise.android.ui.conversation.nostr
 
 import androidx.compose.foundation.layout.Box
@@ -39,7 +41,7 @@ internal fun nostrEventPreviewMaximumHeight(): Dp {
     val available =
         window - WindowInsets.statusBars.getTop(density) -
             maxOf(WindowInsets.navigationBars.getBottom(density), WindowInsets.imeAnimationTarget.getBottom(density))
-    return with(density) { (available.coerceAtLeast(1) * 0.6f).toDp() }
+    return with(density) { (available.coerceAtLeast(1) * EVENT_PREVIEW_HEIGHT_FRACTION).toDp() }
 }
 
 /** Measures one content composition; only overflowing cards place an expansion action. */
@@ -98,3 +100,5 @@ private class CardMeasurement(
 private enum class CardSlot { Body, Expand }
 
 internal const val NOSTR_CARD_EXPAND_TAG = "nostr-card-expand"
+
+private const val EVENT_PREVIEW_HEIGHT_FRACTION = 0.6f

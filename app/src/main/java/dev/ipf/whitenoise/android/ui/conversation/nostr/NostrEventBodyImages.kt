@@ -32,7 +32,7 @@ internal fun nostrEventMediaCandidates(
 /** A display hint for an explicit action, never payload qualification or acquisition. */
 internal fun nostrLinkedMediaKind(raw: String): NostrLinkedMediaKind? {
     if (raw.length > IMAGE_DESTINATION_MAX_CHARS) return null
-    val safe = safeNostrMediaUrl(raw) ?: return null
+    val safe = safeNostrMediaUrl(raw)
     val extension =
         runCatching {
             URI(safe)
@@ -72,8 +72,8 @@ private class NostrBodyImageCollector {
     ) {
         if (urls.size >= MAX_READER_IMAGES || raw.length > IMAGE_DESTINATION_MAX_CHARS) return
         val safe = safeNostrMediaUrl(raw) ?: return
-        val resolved = kind ?: nostrLinkedMediaKind(safe) ?: return
-        urls.putIfAbsent(safe, resolved)
+        val resolved = kind ?: nostrLinkedMediaKind(safe)
+        if (resolved != null) urls.putIfAbsent(safe, resolved)
     }
 
     private fun available(): Boolean = remainingNodes > 0 && urls.size < MAX_READER_IMAGES

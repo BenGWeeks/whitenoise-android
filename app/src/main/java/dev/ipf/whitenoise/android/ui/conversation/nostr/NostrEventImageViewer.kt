@@ -57,7 +57,8 @@ internal fun NostrEventImagePane(
     var failed by remember(url) { mutableStateOf(false) }
     var fullscreen by remember(url) { mutableStateOf(false) }
     LaunchedEffect(url, attempt) {
-        if (attempt == 0 || (initiallyRequested && attempt == 1 && image != null)) return@LaunchedEffect
+        val selectedCachedImage = initiallyRequested && attempt == 1 && image != null
+        if (attempt == 0 || selectedCachedImage) return@LaunchedEffect
         loading = true
         failed = false
         image =

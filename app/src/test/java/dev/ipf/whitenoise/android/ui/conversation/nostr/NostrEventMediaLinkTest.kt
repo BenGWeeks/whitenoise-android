@@ -2,6 +2,7 @@ package dev.ipf.whitenoise.android.ui.conversation.nostr
 
 import android.content.Context
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -33,7 +34,7 @@ class NostrEventMediaLinkTest {
         val opened = mutableListOf<String>()
         render(MarkdownInlineFfi.Autolink(url, MarkdownAutolinkKindFfi.URI, MarkdownLinkDestinationKindFfi.WEB), opened)
         composeRule.runOnIdle { assertTrue(opened.isEmpty()) }
-        composeRule.onNodeWithText(url).performTouchInput { click(Offset(10f, centerY)) }
+        composeRule.onNodeWithText(url).performTouchInput { click(Offset(10f, center.y)) }
         composeRule.runOnIdle { assertEquals(listOf("image:$url"), opened) }
     }
 
@@ -50,7 +51,7 @@ class NostrEventMediaLinkTest {
             ),
             opened,
         )
-        composeRule.onNodeWithText("Watch clip").performTouchInput { click(Offset(10f, centerY)) }
+        composeRule.onNodeWithText("Watch clip").performTouchInput { click(Offset(10f, center.y)) }
         composeRule.runOnIdle { assertTrue(opened.isEmpty()) }
         val label = ApplicationProvider.getApplicationContext<Context>().getString(R.string.link_confirm_open)
         composeRule.onNodeWithText(label).performClick()
