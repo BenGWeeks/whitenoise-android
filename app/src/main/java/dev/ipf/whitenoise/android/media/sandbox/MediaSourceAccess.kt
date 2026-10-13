@@ -72,15 +72,21 @@ internal class MediaSourceAccess(
         resolver: android.content.ContentResolver,
         uri: android.net.Uri,
         block: (ParcelFileDescriptor) -> T?,
-    ): T? =
-        withProviderDeadline { signal, opened ->
-            resolver.openAssetFileDescriptor(uri, "r", signal)?.use { asset ->
-                opened.set(asset)
-                asset.createInputStream().use { source ->
-                    withStagedInput({ writer -> copyBoundedSource(source, writer) }, block)
+    ): T? {
+        val staged =
+            withProviderDeadline { signal, opened ->
+                resolver.openAssetFileDescriptor(uri, "r", signal)?.use { asset ->
+                    opened.set(asset)
+                    asset.createInputStream().use { source ->
+                        withStagedInput({ writer -> copyBoundedSource(source, writer) }) { input ->
+                            ParcelFileDescriptor.dup(input.fileDescriptor)
+                        }
+                    }
                 }
             }
-        }
+        // Decoder admission/IPC owns the staged capability without occupying provider admission.
+        return staged?.use(block)
+    }
 
     fun <T> withMediaUriInput(
         resolver: android.content.ContentResolver,

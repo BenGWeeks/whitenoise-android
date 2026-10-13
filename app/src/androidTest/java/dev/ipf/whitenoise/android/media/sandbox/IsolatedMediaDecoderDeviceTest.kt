@@ -163,36 +163,50 @@ class IsolatedMediaDecoderDeviceTest {
     }
 
     @Test
-    fun blockedPlatformParserDoesNotHoldImageProviderAdmission() {
+    fun blockedParsersDoNotHoldProviderAdmission() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val sources = MediaSourceAccess(context)
         val workers =
             java.util.concurrent.Executors
                 .newFixedThreadPool(2)
-        val entered = java.util.concurrent.CountDownLatch(1)
-        val release = java.util.concurrent.CountDownLatch(1)
         val file = File.createTempFile("provider-gate", ".png", context.cacheDir)
         try {
             file.writeBytes(png())
             val uri = android.net.Uri.fromFile(file)
-            val media =
-                workers.submit<Int?> {
-                    sources.withMediaUriInput(context.contentResolver, uri) {
-                        entered.countDown()
-                        release.await(10, java.util.concurrent.TimeUnit.SECONDS)
-                        7
-                    }
+            for (mediaFirst in listOf(true, false)) {
+                val entered = java.util.concurrent.CountDownLatch(1)
+                val release = java.util.concurrent.CountDownLatch(1)
+                try {
+                    val blocked =
+                        workers.submit<Int?> {
+                            val callback: (android.os.ParcelFileDescriptor) -> Int? = {
+                                entered.countDown()
+                                release.await(10, java.util.concurrent.TimeUnit.SECONDS)
+                                7
+                            }
+                            if (mediaFirst) {
+                                sources.withMediaUriInput(context.contentResolver, uri, callback)
+                            } else {
+                                sources.withUriInput(context.contentResolver, uri, callback)
+                            }
+                        }
+                    assertTrue(entered.await(5, java.util.concurrent.TimeUnit.SECONDS))
+                    val second =
+                        workers.submit<Long?> {
+                            if (mediaFirst) {
+                                sources.withUriInput(context.contentResolver, uri) { it.statSize }
+                            } else {
+                                sources.withMediaUriInput(context.contentResolver, uri) { it.statSize }
+                            }
+                        }
+                    assertEquals(file.length(), second.get(5, java.util.concurrent.TimeUnit.SECONDS))
+                    release.countDown()
+                    assertEquals(7, blocked.get(5, java.util.concurrent.TimeUnit.SECONDS))
+                } finally {
+                    release.countDown()
                 }
-            assertTrue(entered.await(5, java.util.concurrent.TimeUnit.SECONDS))
-            val image =
-                workers.submit<Long?> {
-                    sources.withUriInput(context.contentResolver, uri) { it.statSize }
-                }
-            assertEquals(file.length(), image.get(5, java.util.concurrent.TimeUnit.SECONDS))
-            release.countDown()
-            assertEquals(7, media.get(5, java.util.concurrent.TimeUnit.SECONDS))
+            }
         } finally {
-            release.countDown()
             workers.shutdownNow()
             sources.close()
             file.delete()
