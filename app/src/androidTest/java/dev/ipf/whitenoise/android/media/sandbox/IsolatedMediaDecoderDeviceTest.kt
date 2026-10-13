@@ -109,7 +109,7 @@ class IsolatedMediaDecoderDeviceTest {
     }
 
     @Test
-    fun svgVideoAndMetadataUseTheRealIsolatedTransport() {
+    fun isolatedImagesAndPlatformVideoUseSelectedDescriptors() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val context = instrumentation.targetContext
         IsolatedMediaDecoder.install(context)
@@ -160,13 +160,45 @@ class IsolatedMediaDecoderDeviceTest {
             val probe = requireNotNull(IsolatedMediaDecoder.probe(audio, edge = 32, poster = false))
             assertNull(probe.poster)
             assertTrue(probe.durationMs in 100L..300L)
-            val worker = requireNotNull(IsolatedMediaDecoder.lastIsolation)
-            assertNotEquals(Process.myUid(), worker.uid)
-            assertTrue(worker.isolated)
-            assertFalse(worker.internetGranted)
-            assertFalse(worker.runtimeInitialized)
         } finally {
             audio.delete()
+        }
+    }
+
+    @Test
+    fun blockedPlatformParserDoesNotHoldImageProviderAdmission() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val sources = MediaSourceAccess(context)
+        val workers =
+            java.util.concurrent.Executors
+                .newFixedThreadPool(2)
+        val entered = java.util.concurrent.CountDownLatch(1)
+        val release = java.util.concurrent.CountDownLatch(1)
+        val file = File.createTempFile("provider-gate", ".png", context.cacheDir)
+        try {
+            file.writeBytes(png())
+            val uri = android.net.Uri.fromFile(file)
+            val media =
+                workers.submit<Int?> {
+                    sources.withMediaUriInput(context.contentResolver, uri) {
+                        entered.countDown()
+                        release.await(10, java.util.concurrent.TimeUnit.SECONDS)
+                        7
+                    }
+                }
+            assertTrue(entered.await(5, java.util.concurrent.TimeUnit.SECONDS))
+            val image =
+                workers.submit<Long?> {
+                    sources.withUriInput(context.contentResolver, uri) { it.statSize }
+                }
+            assertEquals(file.length(), image.get(5, java.util.concurrent.TimeUnit.SECONDS))
+            release.countDown()
+            assertEquals(7, media.get(5, java.util.concurrent.TimeUnit.SECONDS))
+        } finally {
+            release.countDown()
+            workers.shutdownNow()
+            sources.close()
+            file.delete()
         }
     }
 

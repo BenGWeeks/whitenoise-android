@@ -75,19 +75,7 @@ internal class IsolatedMediaTransport(
     private val callbacks by callbackThread
     private val handler by lazy { Handler(callbacks.looper) }
     private val callbackExecutor = java.util.concurrent.Executor { command -> handler.post(command) }
-    private val sourceTimer =
-        lazy {
-            java.util.concurrent.Executors
-                .newSingleThreadScheduledExecutor()
-        }
-
-    private val sourceWatchdog by sourceTimer
-    private val activeSource =
-        java.util.concurrent.atomic
-            .AtomicReference<java.util.concurrent.atomic.AtomicReference<AutoCloseable?>?>()
-    private val activeCancellation =
-        java.util.concurrent.atomic
-            .AtomicReference<android.os.CancellationSignal?>()
+    private val sources = MediaSourceAccess(context)
 
     @Volatile private var remote: Messenger? = null
 
@@ -218,7 +206,7 @@ internal class IsolatedMediaTransport(
         uri: android.net.Uri,
         edge: Int,
     ): Bitmap? =
-        withUriInput(resolver, uri) { input ->
+        sources.withUriInput(resolver, uri) { input ->
             serialized {
                 val capacity = MediaDecodePolicy.outputCapacity(edge) ?: return@serialized null
                 SharedMemory.create("media-pixels", capacity).use { output ->
@@ -227,114 +215,6 @@ internal class IsolatedMediaTransport(
                 }
             }
         }
-
-    override fun probeUri(
-        resolver: android.content.ContentResolver,
-        uri: android.net.Uri,
-        edge: Int,
-    ): MediaProbe? =
-        withProviderDeadline { signal, source ->
-            resolver.openAssetFileDescriptor(uri, "r", signal)?.use { asset ->
-                source.set(asset)
-                val input = asset.parcelFileDescriptor
-                val length = asset.length
-                if (length !in 1..MAX_MEDIA_SOURCE_BYTES ||
-                    asset.startOffset < 0L ||
-                    !validMediaRange(input.statSize, asset.startOffset, length)
-                ) {
-                    return@withProviderDeadline null
-                }
-                withSelectedMediaInput(input, asset.startOffset, length) { selected ->
-                    serialized {
-                        val capacity = MediaDecodePolicy.outputCapacity(edge) ?: return@serialized null
-                        SharedMemory.create("media-poster", capacity).use { output ->
-                            val response =
-                                exchange(
-                                    selected,
-                                    output,
-                                    MediaDecodeRequest(edge, true, MediaDecodePolicy.PROBE, 0L, length),
-                                )
-                                    ?: return@serialized null
-                            MediaProbe(
-                                response.getInt("sourceWidth"),
-                                response.getInt("sourceHeight"),
-                                response.getLong("duration"),
-                                if (response.getBoolean("pixels")) copyPixels(response, output, edge) else null,
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-    override fun probe(
-        file: File,
-        edge: Int,
-        poster: Boolean,
-    ): MediaProbe? =
-        serialized {
-            val capacity = MediaDecodePolicy.outputCapacity(edge) ?: return@serialized null
-            SharedMemory.create("media-poster", capacity).use { output ->
-                val response =
-                    requestFile(file, edge, poster, MediaDecodePolicy.PROBE, output) ?: return@serialized null
-                val bitmap = if (response.getBoolean("pixels")) copyPixels(response, output, edge) else null
-                MediaProbe(
-                    response.getInt("sourceWidth"),
-                    response.getInt("sourceHeight"),
-                    response.getLong("duration"),
-                    bitmap,
-                )
-            }
-        }
-
-    override fun probeBytes(
-        bytes: ByteArray,
-        edge: Int,
-        poster: Boolean,
-    ): MediaProbe? =
-        serialized {
-            val capacity = MediaDecodePolicy.outputCapacity(edge) ?: return@serialized null
-            SharedMemory.create("media-poster", capacity).use { output ->
-                val response = request(bytes, edge, poster, MediaDecodePolicy.PROBE, output) ?: return@serialized null
-                MediaProbe(
-                    response.getInt("sourceWidth"),
-                    response.getInt("sourceHeight"),
-                    response.getLong("duration"),
-                    if (response.getBoolean("pixels")) copyPixels(response, output, edge) else null,
-                )
-            }
-        }
-
-    override fun waveform(file: File): FloatArray? =
-        serialized {
-            SharedMemory.create("media-waveform", Int.SIZE_BYTES).use { output ->
-                val response = requestFile(file, 1, false, MediaDecodePolicy.WAVEFORM, output) ?: return@serialized null
-                response.getFloatArray("waveform")?.takeIf { values ->
-                    values.size == dev.ipf.whitenoise.android.audio.AudioWaveformExtractor.BARS &&
-                        values.all { it.isFinite() && it in 0f..1f }
-                }
-            }
-        }
-
-    @Suppress("ReturnCount") // Source size and failure quarantine precede opening the descriptor.
-    private fun requestFile(
-        file: File,
-        edge: Int,
-        poster: Boolean,
-        operation: Int,
-        output: SharedMemory,
-    ): Bundle? {
-        if (!file.isFile || file.length() !in 1..MAX_MEDIA_SOURCE_BYTES || poisoned) return null
-        val key = "$operation:$edge:${file.absolutePath}:${file.length()}:${file.lastModified()}"
-        val now = android.os.SystemClock.elapsedRealtime()
-        if ((refusals[key] ?: 0L) > now) return null
-        val result =
-            ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { input ->
-                exchange(input, output, MediaDecodeRequest(edge, poster, operation))
-            }
-        if (result == null && requestDispatched) recordRefusal(key, now)
-        return result
-    }
 
     private fun <T> serialized(block: () -> T?): T? {
         if (closed || poisoned || !gate.tryAcquire(MediaDecodePolicy.DEADLINE_MS, TimeUnit.MILLISECONDS)) return null
@@ -353,14 +233,7 @@ internal class IsolatedMediaTransport(
         operation: Int,
         output: SharedMemory,
     ): Bundle? {
-        val limit =
-            if (operation ==
-                MediaDecodePolicy.PROBE
-            ) {
-                MAX_MEDIA_SOURCE_BYTES
-            } else {
-                MediaDecodePolicy.MAX_INPUT_BYTES.toLong()
-            }
+        val limit = MediaDecodePolicy.MAX_INPUT_BYTES.toLong()
         if (bytes.size.toLong() !in 1..limit || poisoned) return null
         val digest =
             java.security.MessageDigest
@@ -370,7 +243,7 @@ internal class IsolatedMediaTransport(
         val now = android.os.SystemClock.elapsedRealtime()
         if ((refusals[key] ?: 0L) > now) return null
         val result =
-            withInput(bytes) { input -> exchange(input, output, MediaDecodeRequest(edge, oriented, operation)) }
+            sources.withInput(bytes) { input -> exchange(input, output, MediaDecodeRequest(edge, oriented, operation)) }
         if (result == null && requestDispatched) recordRefusal(key, now)
         return result
     }
@@ -397,17 +270,7 @@ internal class IsolatedMediaTransport(
                 },
             )
             requestDispatched = true
-            if (!reply.ready.await(
-                    if (request.operation ==
-                        MediaDecodePolicy.WAVEFORM
-                    ) {
-                        MediaDecodePolicy.WAVEFORM_DEADLINE_MS
-                    } else {
-                        MediaDecodePolicy.DEADLINE_MS
-                    },
-                    TimeUnit.MILLISECONDS,
-                )
-            ) {
+            if (!reply.ready.await(MediaDecodePolicy.DEADLINE_MS, TimeUnit.MILLISECONDS)) {
                 poisoned = remote?.binder?.isBinderAlive == true
                 return null
             }
@@ -486,121 +349,6 @@ internal class IsolatedMediaTransport(
         return connected
     }
 
-    @Suppress("ReturnCount") // Refuse expired or retired provider reads before holding scarce staging admission.
-    private inline fun <T> withProviderDeadline(
-        block: (android.os.CancellationSignal, java.util.concurrent.atomic.AtomicReference<AutoCloseable?>) -> T?,
-    ): T? {
-        if (closed ||
-            poisoned ||
-            !providerAdmission.tryAcquire(MediaDecodePolicy.DEADLINE_MS, TimeUnit.MILLISECONDS)
-        ) {
-            return null
-        }
-        if (closed || poisoned) {
-            providerAdmission.release()
-            return null
-        }
-        val signal = android.os.CancellationSignal()
-        val source =
-            java.util.concurrent.atomic
-                .AtomicReference<AutoCloseable?>()
-        activeSource.set(source)
-        activeCancellation.set(signal)
-        var timer: java.util.concurrent.ScheduledFuture<*>? = null
-        return try {
-            timer =
-                sourceWatchdog.schedule({
-                    runCatching { signal.cancel() }
-                    runCatching { source.get()?.close() }
-                }, MediaDecodePolicy.DEADLINE_MS, TimeUnit.MILLISECONDS)
-            block(signal, source)
-        } finally {
-            timer?.cancel(false)
-            activeCancellation.compareAndSet(signal, null)
-            activeSource.compareAndSet(source, null)
-            providerAdmission.release()
-        }
-    }
-
-    private fun <T> withSelectedMediaInput(
-        input: ParcelFileDescriptor,
-        offset: Long,
-        length: Long,
-        block: (ParcelFileDescriptor) -> T?,
-    ): T? =
-        if (offset == 0L && length == input.statSize) {
-            block(input) // Whole selected files keep the zero-copy video path.
-        } else {
-            withStagedInput({ writer -> copySelectedMediaSlice(input.fileDescriptor, offset, length, writer) }, block)
-        }
-
-    private fun <T> withUriInput(
-        resolver: android.content.ContentResolver,
-        uri: android.net.Uri,
-        block: (ParcelFileDescriptor) -> T?,
-    ): T? =
-        withProviderDeadline { signal, opened ->
-            resolver.openAssetFileDescriptor(uri, "r", signal)?.use { asset ->
-                opened.set(asset)
-                asset.createInputStream().use { source ->
-                    withStagedInput({ writer -> copyBoundedSource(source, writer) }, block)
-                }
-            }
-        }
-
-    private fun copyBoundedSource(
-        source: java.io.InputStream,
-        writer: java.io.OutputStream,
-    ): Boolean {
-        val chunk = ByteArray(MediaDecodePolicy.STAGING_CHUNK_BYTES)
-        var total = 0L
-        var count = source.read(chunk)
-        val deadline = android.os.SystemClock.elapsedRealtime() + MediaDecodePolicy.DEADLINE_MS
-        while (count > 0) {
-            total += count
-            if (total > MediaDecodePolicy.MAX_INPUT_BYTES ||
-                android.os.SystemClock.elapsedRealtime() > deadline
-            ) {
-                return false
-            }
-            writer.write(chunk, 0, count)
-            count = source.read(chunk)
-        }
-        return count < 0 && total > 0L
-    }
-
-    private fun <T> withInput(
-        bytes: ByteArray,
-        block: (ParcelFileDescriptor) -> T,
-    ): T? =
-        withStagedInput({ writer ->
-            writer.write(bytes)
-            true
-        }, block)
-
-    private fun <T> withStagedInput(
-        write: (java.io.OutputStream) -> Boolean,
-        block: (ParcelFileDescriptor) -> T?,
-    ): T? {
-        val directory = File(context.cacheDir, "media-decoder-input").apply { mkdirs() }
-        val file = File.createTempFile("source-", ".bin", directory)
-        return try {
-            file.outputStream().use { writer ->
-                ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { input ->
-                    check(file.delete()) // No plaintext pathname survives, even if the app dies during staging.
-                    if (write(writer)) {
-                        writer.flush()
-                        block(input)
-                    } else {
-                        null
-                    }
-                }
-            }
-        } finally {
-            file.delete()
-        }
-    }
-
     // Failed copies recycle their allocation before propagation.
     @Suppress("ReturnCount", "TooGenericExceptionCaught")
     private fun copyPixels(
@@ -632,15 +380,7 @@ internal class IsolatedMediaTransport(
     override fun close() {
         closed = true
         poisoned = true
-        if (sourceTimer.isInitialized()) {
-            val signal = activeCancellation.get()
-            val source = activeSource.get()
-            sourceWatchdog.execute {
-                runCatching { signal?.cancel() }
-                runCatching { source?.get()?.close() }
-                sourceWatchdog.shutdown()
-            }
-        }
+        sources.close()
         pending?.ready?.countDown()
         pending?.connected?.countDown()
         synchronized(bindingLock) {
@@ -655,7 +395,6 @@ internal class IsolatedMediaTransport(
 
     companion object {
         private val bindingSequence = AtomicInteger()
-        private val providerAdmission = Semaphore(1)
     }
 
     private class Reply(

@@ -32,13 +32,7 @@ class MediaDecodeService : Service() {
             val killer =
                 watchdog.schedule(
                     { Process.killProcess(Process.myPid()) },
-                    if (data.getInt("operation") ==
-                        MediaDecodePolicy.WAVEFORM
-                    ) {
-                        MediaDecodePolicy.WAVEFORM_WATCHDOG_MS
-                    } else {
-                        MediaDecodePolicy.WATCHDOG_MS
-                    },
+                    MediaDecodePolicy.WATCHDOG_MS,
                     TimeUnit.MILLISECONDS,
                 )
             try {
@@ -68,10 +62,6 @@ class MediaDecodeService : Service() {
         input.use {
             output.use {
                 if (data.getInt("version") != MediaDecodePolicy.VERSION) return response
-                val operation = data.getInt("operation")
-                if (operation == MediaDecodePolicy.PROBE || operation == MediaDecodePolicy.WAVEFORM) {
-                    return mediaOperation(input, output, data, response)
-                }
                 return imageOperation(input, output, data, response)
             }
         }
@@ -139,40 +129,6 @@ class MediaDecodeService : Service() {
                 else -> null
             } ?: return response
         bitmap.usePixels(output, data.getInt("edge"), response)
-        return response
-    }
-
-    @Suppress("ReturnCount") // Validate the selected file range and operation before platform parsing.
-    private fun mediaOperation(
-        input: ParcelFileDescriptor,
-        output: SharedMemory,
-        data: Bundle,
-        response: Bundle,
-    ): Bundle {
-        if (input.statSize !in 1..MAX_MEDIA_SOURCE_BYTES) return response
-        if (data.getInt("operation") == MediaDecodePolicy.WAVEFORM) {
-            val waveform =
-                dev.ipf.whitenoise.android.audio.AudioWaveformExtractor
-                    .decodeFromDescriptor(input.fileDescriptor)
-                    ?: return response
-            response.putFloatArray("waveform", waveform)
-            response.putBoolean("success", true)
-            return response
-        }
-        val edge = data.getInt("edge")
-        if (MediaDecodePolicy.outputCapacity(edge) == null) return response
-        val offset = data.getLong("offset")
-        val length = data.getLong("length")
-        if (offset < 0 || length <= 0 || offset > input.statSize - length) return response
-        val result = probeMediaInDecoder(input, edge, data.getBoolean("oriented"), offset, length) ?: return response
-        response.putInt("sourceWidth", result.width)
-        response.putInt("sourceHeight", result.height)
-        response.putLong("duration", result.durationMs)
-        result.poster?.let {
-            it.usePixels(output, edge, response)
-            response.putBoolean("pixels", response.getBoolean("success"))
-        }
-        response.putBoolean("success", true)
         return response
     }
 

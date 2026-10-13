@@ -80,8 +80,15 @@ object AudioWaveformExtractor {
 
     internal fun waveformCacheKey(file: File): String = "${file.absolutePath}:${file.length()}:${file.lastModified()}"
 
-    internal fun decodeFromDescriptor(descriptor: java.io.FileDescriptor): FloatArray? =
-        decodeBlocking(filePath = "", resources = AndroidAudioDecoderResources(descriptor))
+    internal fun decodeFromDescriptor(
+        descriptor: java.io.FileDescriptor,
+        cancellationCheck: () -> Unit = {},
+    ): FloatArray? =
+        decodeBlocking(
+            filePath = "",
+            resources = AndroidAudioDecoderResources(descriptor),
+            cancellationCheck = cancellationCheck,
+        )
 
     internal fun <FormatT> decodeBlocking(
         filePath: String,

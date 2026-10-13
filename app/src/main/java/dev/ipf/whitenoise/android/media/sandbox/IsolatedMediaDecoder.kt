@@ -35,7 +35,7 @@ internal object IsolatedMediaDecoder {
             clear()
             installedContext = context.applicationContext
             transport = IsolatedMediaTransport(context.applicationContext, "images")
-            mediaTransport = IsolatedMediaTransport(context.applicationContext, "media")
+            mediaTransport = PlatformMediaTransport(context.applicationContext)
         }
     }
 

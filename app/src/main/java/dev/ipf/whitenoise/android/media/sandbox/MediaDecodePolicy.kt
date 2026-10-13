@@ -19,7 +19,6 @@ internal object MediaDecodePolicy {
     const val DEBUG_HANG = 7
     const val EXIF = 8
     const val WAVEFORM_DEADLINE_MS = 40000L
-    const val WAVEFORM_WATCHDOG_MS = 35000L
     const val REFUSAL_TTL_MS = 60000L
     const val MAX_REFUSALS = 64
     const val SVG_EDGE = 1024

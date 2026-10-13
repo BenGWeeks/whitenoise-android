@@ -4,7 +4,7 @@ import android.media.MediaMetadataRetriever
 import android.os.ParcelFileDescriptor
 
 /** Platform extractors see only the selected descriptor, never a path or network URL. */
-internal fun probeMediaInDecoder(
+internal fun probeMediaFromDescriptor(
     input: ParcelFileDescriptor,
     edge: Int,
     poster: Boolean,
