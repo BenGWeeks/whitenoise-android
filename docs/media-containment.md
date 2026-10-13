@@ -19,7 +19,7 @@ Debug instrumentation may pass the exact path of an existing synthetic `media-co
 - Output edge: at most 4096 pixels; parent-owned output: at most 64 MiB. Existing avatar, thumbnail, viewer and editor profiles remain tighter.
 - Existing GIF/WebP canvas/frame/work admission precedes every still or animated decode. A refused animation cannot bypass admission through its first frame.
 - File media probes: at most 512 MiB, with validated descriptor offsets and lengths; this is not an attachment transfer quota.
-- Image worker watchdog: 6 seconds, with an 8-second host wait. A worker still alive after timeout blocks replacement admission; a system-confirmed death permits a fresh generation.
+- Image worker watchdog: 6 seconds, with an 8-second host wait. An interrupted dispatched request also asks the worker to retire through its control looper. A worker still alive after timeout/cancellation blocks replacement admission; a system-confirmed death permits a fresh generation.
 - Platform media: one process-wide operation, admitted before opening/staging inputs. Caller waits are bounded at 8 seconds for probes and 40 seconds for waveforms, plus bounded admission. Audio loops check cancellation and a 30-second decode ceiling. A timed-out native call keeps its slot until it actually terminates; account reset cannot create a parallel replacement thread. Late posters are recycled and retired results are discarded. The app cannot safely force-kill an in-process native call.
 - Failed source revisions have bounded in-memory quarantine. Account teardown retires the image worker, media delivery and pending reply capabilities; host cache-generation checks remain authoritative for UI publication.
 
@@ -65,3 +65,7 @@ run normally tests its merge revision, while a branch dispatch tests that branch
 Unavailable EXIF replies remain unknown. Original-quality and animated metadata
 preparation refuse that operation instead of stripping orientation under an
 unconfirmed upright assumption. A later healthy request may retry normally.
+
+Optional notification emoji decoding is interruptible so its short artwork deadline
+can continue to text-only posting while the image worker is busy. Cancellation
+recycles undelivered pixels and preserves the account/notification ownership checks.

@@ -3,6 +3,7 @@ package dev.ipf.whitenoise.android.media.sandbox
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.Semaphore
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.cancellation.CancellationException
@@ -36,7 +37,7 @@ internal class BoundedMediaExecutor(
                     done.countDown()
                 }
             }
-        } catch (error: RuntimeException) {
+        } catch (error: RejectedExecutionException) {
             admission.release()
             throw error
         }

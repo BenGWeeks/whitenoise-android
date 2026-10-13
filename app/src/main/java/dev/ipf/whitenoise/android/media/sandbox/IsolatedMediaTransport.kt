@@ -69,7 +69,8 @@ internal class IsolatedMediaTransport(
     java.io.Closeable {
     private val gate = Semaphore(1)
     private val bindingLock = Any()
-    private var requestDispatched = false
+
+    @Volatile private var requestDispatched = false
     private val ids = AtomicInteger()
     private val callbackThread = lazy { HandlerThread("media-decoder-ipc").apply { start() } }
     private val callbacks by callbackThread
@@ -271,7 +272,7 @@ internal class IsolatedMediaTransport(
             )
             requestDispatched = true
             if (!reply.ready.await(MediaDecodePolicy.DEADLINE_MS, TimeUnit.MILLISECONDS)) {
-                poisoned = remote?.binder?.isBinderAlive == true
+                retireCurrentWorker()
                 return null
             }
             return reply.result?.takeIf {
@@ -282,9 +283,31 @@ internal class IsolatedMediaTransport(
                     !it.getBoolean("internetGranted") &&
                     !it.getBoolean("runtimeInitialized")
             }
+        } catch (interrupted: InterruptedException) {
+            if (requestDispatched && !reply.completed.get()) {
+                retireCurrentWorker()
+            }
+            throw interrupted
         } finally {
             pending = null
         }
+    }
+
+    private fun retireCurrentWorker() {
+        val target =
+            synchronized(bindingLock) {
+                val current = remote?.takeUnless { closed || bindingLost }
+                poisoned = current?.binder?.isBinderAlive == true
+                current?.takeIf { poisoned }
+            }
+        // Never write poison after the death callback has cleared it. A healthy late worker must
+        // retire too: completing its request would otherwise cancel the watchdog without reopening admission.
+        runCatching { target?.send(Message.obtain().apply { what = MediaDecodePolicy.RETIRE }) }
+    }
+
+    internal fun isRequestDispatchedForTest(): Boolean {
+        check(dev.ipf.whitenoise.android.BuildConfig.DEBUG)
+        return requestDispatched && pending != null
     }
 
     private fun requestPayload(

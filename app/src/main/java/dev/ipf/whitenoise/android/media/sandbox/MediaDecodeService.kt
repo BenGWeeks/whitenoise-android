@@ -24,7 +24,12 @@ class MediaDecodeService : Service() {
 
     @Suppress("ReturnCount") // Invalid control messages never enter the codec queue.
     private fun accept(message: Message): Boolean {
-        if (message.what != MediaDecodePolicy.DECODE || !Process.isIsolated()) return true
+        if (!Process.isIsolated()) return true
+        if (message.what == MediaDecodePolicy.RETIRE) {
+            Process.killProcess(Process.myPid())
+            return true
+        }
+        if (message.what != MediaDecodePolicy.DECODE) return true
         val reply = message.replyTo ?: return true
         val data = message.data
         val requestId = message.arg1

@@ -44,6 +44,29 @@ class MediaBindingRecoveryTest {
         }
     }
 
+    @Test
+    fun deathBeforeOrAfterRetirementNeverPermanentlyPoisonsAdmission() {
+        for (deathFirst in listOf(true, false)) {
+            val context = BindingFixture(ApplicationProvider.getApplicationContext())
+            val transport = IsolatedMediaTransport(context)
+            try {
+                assertNull(transport.decode(byteArrayOf(1), 1, false, MediaDecodePolicy.DECODE))
+                assertNull(transport.decode(byteArrayOf(2), 1, false, MediaDecodePolicy.DECODE))
+                val connection = context.bindings.last()
+                if (deathFirst) connection.onServiceDisconnected(context.component)
+                val retire = IsolatedMediaTransport::class.java.getDeclaredMethod("retireCurrentWorker")
+                retire.isAccessible = true
+                retire.invoke(transport)
+                if (!deathFirst) connection.onServiceDisconnected(context.component)
+                assertNull(transport.decode(byteArrayOf(3), 1, false, MediaDecodePolicy.DECODE))
+                assertEquals(3, context.bindings.size)
+                assertEquals(2, context.current.requests)
+            } finally {
+                transport.close()
+            }
+        }
+    }
+
     private class BindingFixture(
         base: Context,
     ) : ContextWrapper(base) {
@@ -80,8 +103,10 @@ class MediaBindingRecoveryTest {
             data.enforceInterface("android.os.IMessenger")
             if (data.readInt() != 0) {
                 val message = Message.CREATOR.createFromParcel(data)
-                requests += 1
-                sendMediaDecodeReply(message.replyTo.binder, message.arg1, Bundle())
+                if (message.what == MediaDecodePolicy.DECODE) {
+                    requests += 1
+                    sendMediaDecodeReply(message.replyTo.binder, message.arg1, Bundle())
+                }
             }
             return true
         }
